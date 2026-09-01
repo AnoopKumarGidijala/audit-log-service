@@ -37,3 +37,12 @@ def create_audit_event(db: Session, event_in: AuditEventCreate) -> AuditEvent:
         event_hash=event_hash,
     )
     return repo.create_event(db, event)
+
+
+def list_audit_events(
+    db: Session,
+    *,
+    actor_id: str | None = None,
+    event_type: str | None = None,
+) -> list[AuditEvent]:
+    return repo.list_events(db, actor_id=actor_id, event_type=event_type)

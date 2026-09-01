@@ -30,3 +30,20 @@ def create_event(db: Session, event: AuditEvent) -> AuditEvent:
     db.commit()
     db.refresh(event)
     return event
+
+
+def list_events(
+    db: Session,
+    *,
+    actor_id: str | None = None,
+    event_type: str | None = None,
+) -> list[AuditEvent]:
+    # Ordered by id (assignment order is serialized by lock_for_append, so
+    # it matches chain/insertion order) for a deterministic, predictable
+    # sequence across repeated requests.
+    query = db.query(AuditEvent)
+    if actor_id is not None:
+        query = query.filter(AuditEvent.actor_id == actor_id)
+    if event_type is not None:
+        query = query.filter(AuditEvent.event_type == event_type)
+    return query.order_by(AuditEvent.id.asc()).all()

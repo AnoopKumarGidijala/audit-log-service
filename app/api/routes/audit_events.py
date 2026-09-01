@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, status
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.security import get_current_subject
@@ -16,3 +18,13 @@ def create_audit_event(
     _subject: str = Depends(get_current_subject),
 ) -> AuditEventOut:
     return audit_event_service.create_audit_event(db, event_in)
+
+
+@router.get("/audit/events", response_model=list[AuditEventOut])
+def list_audit_events(
+    actor_id: Annotated[str | None, Query(alias="actorId")] = None,
+    event_type: Annotated[str | None, Query(alias="eventType")] = None,
+    db: Session = Depends(get_db),
+    _subject: str = Depends(get_current_subject),
+) -> list[AuditEventOut]:
+    return audit_event_service.list_audit_events(db, actor_id=actor_id, event_type=event_type)
