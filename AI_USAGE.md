@@ -231,3 +231,27 @@ Accepted.
 
 **Reason:**
 Soft deletion preserves the complete physical hash chain while allowing records outside the configured retention window to be hidden from normal queries.
+
+
+
+## Interaction 011
+
+**Tool:** Claude Code
+
+**Task:** Scenario B - structured audit field redaction
+
+**Prompt Summary:**
+Asked Claude to design and implement field-level redaction for sensitive audit payload data without invalidating the existing hash chain.
+
+**Outcome:**
+Accepted with design changes after review.
+
+**Engineer Review:**
+Reviewed the proposed redaction scheme and its alternatives. The initial implementation stopped content verification for an entire record after redaction, which would allow later changes to non-redacted fields to go undetected. Requested a refinement so authorized redaction remains possible while non-redacted content continues to be integrity checked.
+Reviewed the companion audit-event approach, compatibility with existing records, verification behavior, and documented privacy/trade-off limitations.
+
+**Decision:**
+Accepted after refinement.
+
+**Reason:**
+The refined design preserves the original audit history and records the redaction as a new append-only event while retaining tamper detection for content that was not authorized for redaction.

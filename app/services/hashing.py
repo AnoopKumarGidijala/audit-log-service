@@ -40,3 +40,15 @@ def compute_event_hash(
         "previousHash": previous_hash,
     }
     return hashlib.sha256(canonicalize(content)).hexdigest()
+
+
+def hash_field_value(value: Any) -> str:
+    """SHA-256 of a single value's canonical JSON representation.
+
+    Reuses canonicalize() rather than a separate algorithm. Used to retain
+    a verifiable commitment to a redacted payload field's original value
+    (see app/services/redaction_service.py) without storing the value
+    itself. Wrapping in {"value": value} lets any JSON-serializable value
+    (not just dicts) go through the same canonicalize() function.
+    """
+    return hashlib.sha256(canonicalize({"value": value})).hexdigest()

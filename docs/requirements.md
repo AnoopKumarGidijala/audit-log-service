@@ -86,7 +86,7 @@ Records older than a configurable window should be archivable or soft-deletable.
 
 Some fields inside a record's `payload` may contain sensitive information (e.g. account numbers, personal identifiers). These fields should be redactable to meet privacy requirements, without losing the ability to verify the audit history.
 
-**Open design question:** Redacting a field inside `payload` would normally change that record's content hash, which would break the chain as originally computed. How redaction coexists with hash-chain verification is not yet decided — see `assumptions.md`. This is documented here as a problem to be designed, not a solution to be assumed.
+**Decided:** redacting a field inside `payload` would, if hashed naively, break the chain as originally computed. The chosen approach — freeze the record's existing `event_hash` (never recompute it), tombstone the specific redacted field(s) in place, and require a companion audit event logging the redaction — resolves this without changing the hash format, so every record already in the chain is immediately redactable with no migration. Full design, alternatives considered, and trade-offs: see `docs/redaction-design.md`.
 
 ### 10. Verifiable Bulk Export
 

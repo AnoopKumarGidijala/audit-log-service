@@ -36,3 +36,25 @@ class AuditEvent(Base):
     # never affect chain verification (see
     # app/services/retention_service.py).
     archived_at = Column(DateTime(timezone=True), nullable=True, index=True)
+
+    # Redaction metadata. NULL means never redacted. Once set, event_hash is
+    # deliberately left as it was computed at write time (never
+    # recomputed) - it's what chain_verification_service still checks the
+    # *next* record's previous_hash against, so the link is unaffected.
+    # Only the content-hash recompute check is skipped for a record with
+    # redacted_at set, since its payload was intentionally changed after
+    # that hash was computed (see app/services/redaction_service.py and
+    # docs/redaction-design.md).
+    redacted_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    # Top-level payload keys redacted so far (cumulative across repeated
+    # redaction calls on the same record).
+    redacted_fields = Column(JSON, nullable=True)
+    # {field_name: sha256(canonical(original_value))}, captured at the
+    # moment of redaction, before the value is overwritten. Not required
+    # for chain-link integrity - an optional stronger-verification aid: if
+    # the true original value is ever disclosed out of band (e.g. during a
+    # legal process), hashing it and comparing against this stored value
+    # confirms it's genuinely what was redacted, without this record ever
+    # having to retain the value itself. Not exposed via the query API (see
+    # docs/redaction-design.md for why).
+    redacted_field_hashes = Column(JSON, nullable=True)

@@ -41,6 +41,10 @@ def create_event(db: Session, event: AuditEvent) -> AuditEvent:
     return event
 
 
+def get_event(db: Session, event_id: int) -> AuditEvent | None:
+    return db.query(AuditEvent).filter(AuditEvent.id == event_id).first()
+
+
 def list_events(
     db: Session,
     *,
@@ -108,3 +112,31 @@ def archive_events_older_than(db: Session, cutoff: datetime) -> int:
     )
     db.commit()
     return archived_count
+
+
+def redact_event_fields(
+    db: Session,
+    event: AuditEvent,
+    *,
+    payload: dict,
+    redacted_fields: list[str],
+    redacted_field_hashes: dict[str, str],
+    now: datetime,
+) -> AuditEvent:
+    """Persist an already-computed redaction onto an existing record.
+
+    Purely mechanical: the caller (redaction_service) decides what the new
+    payload/metadata should be; this only writes it. Never touches
+    event_hash, previous_hash, or timestamp - those are exactly what makes
+    a redacted record's chain link (and every other record's) still valid
+    (see docs/redaction-design.md). Not a general-purpose update - only
+    these four columns can ever be set here, and only via
+    redaction_service.
+    """
+    event.payload = payload
+    event.redacted_fields = redacted_fields
+    event.redacted_field_hashes = redacted_field_hashes
+    event.redacted_at = now
+    db.commit()
+    db.refresh(event)
+    return event
