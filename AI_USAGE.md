@@ -46,3 +46,26 @@ Checked the documented requirements against the assignment and reviewed the init
 
 **Reason:**
 The generated requirements covered the three scenarios correctly. Minor changes were made to keep the documentation aligned with the assignment and avoid making design decisions too early.
+
+
+
+## Interaction 003
+
+**Tool:** Claude Code
+
+**Task:** Initial architecture design
+
+**Prompt Summary:**
+Asked Claude to document the initial FastAPI service architecture, API flow, audit data model, authentication and hash-chain design.
+
+**Outcome:**
+Accepted with minor changes.
+
+**Engineer Review:**
+Reviewed the architecture, API responsibilities, data model, hash-chain flow and concurrency considerations. Moved database filtering and pagination responsibilities to the repository layer and clarified the local HTTP/deployed HTTPS and PostgreSQL storage descriptions.
+
+**Decision:**
+Accepted with minor changes.
+
+**Reason:**
+The proposed architecture was simple and suitable for the prototype. Minor changes were made to keep database responsibilities clearly separated from business logic and avoid implying PostgreSQL itself is append-only. 
