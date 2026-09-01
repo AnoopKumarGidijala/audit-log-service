@@ -116,7 +116,7 @@ Before computing `event_hash`, the record's content must be converted to a **can
 
 Because each new record must reference the `event_hash` of the current last record, two concurrent write requests could both read the same "current last record," each compute a `previous_hash` pointing to it, and both attempt to append — producing a fork in the chain rather than a single linear sequence.
 
-This is a design concern we need to address so that audit writes are effectively serialized with respect to chain construction (i.e. only one record can become "next" at a time). The exact mechanism (e.g. a database-level lock, a unique constraint on `previous_hash`, or serializable transactions) is **not decided yet** and will be chosen during implementation.
+**Decided:** appends are serialized with a PostgreSQL transaction-level advisory lock (`pg_advisory_xact_lock`), taken in the repository layer before the last record is read, and released automatically when the append transaction commits or rolls back. This guarantees only one write can be constructing the "next" record at a time, keeping the chain a single linear sequence. The trade-off is that audit-event writes are serialized — concurrent write requests queue up behind the lock rather than committing in parallel — which is acceptable for this service's expected write volume.
 
 ## Future Extensions (Scenario B — Not Designed Yet)
 
