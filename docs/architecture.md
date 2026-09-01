@@ -131,4 +131,4 @@ The following are anticipated extensions to this architecture. They are noted he
 - Database schema / migrations
 - Python module structure or dependencies
 - Detailed request/response contracts
-- Scenario C (compliance reporting) design — still pending clarification
+- Scenario C (compliance reporting) design — this document remains Scenario-A-scoped; the compliance reporting endpoint reuses this document's existing layering unchanged (see `docs/requirements.md` Scenario C, "Decided (Prototype Scope)" for what was implemented and why)

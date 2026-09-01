@@ -118,3 +118,29 @@ This requirement is **not fully clear** as stated. Before implementing any part 
 8. **Delivery/format:** Do reports need to be exported in a specific format for regulators (e.g. CSV, PDF, a signed export), and does the Scenario B verifiable export mechanism satisfy this?
 
 We will scope and implement a subset of Scenario C only after these questions are answered or reasonable assumptions are explicitly agreed and documented.
+
+### Decided (Prototype Scope)
+
+The open questions above are **not** all resolved — most remain genuinely open for a real regulatory deployment. What follows is the narrow, explicit interpretation this prototype implements, so the ambiguity in the original requirement doesn't silently turn into an ambiguous implementation.
+
+**Assumptions made for this prototype** (answering only as much of the Open Questions list above as implementation requires, and no more):
+
+- **"Client account data"** (Q2) is represented by audit events whose `resourceType` is exactly `"ACCOUNT"`. This is a fixed, non-configurable filter built into the reporting endpoint, not a value the caller supplies — the endpoint reports on account access specifically, not arbitrary resource types.
+- **"Access"** (Q1) is *not* narrowed to a specific `eventType` (e.g. read-only). Every event already recorded against an `ACCOUNT` resource — however it was categorized at write time — is treated as "access" to that account for this prototype. The audit log has no canonical read-vs-write event-type taxonomy today, and inventing one here would mean guessing at a business rule nobody has actually specified; it's simpler and more honest to report everything tied to the resource and let a human reviewer interpret `eventType` themselves.
+- **Actors** (Q3) are whatever `actorId` values already appear in the audit log — no distinction is drawn between human users, service accounts, or anything else, since the audit log doesn't currently distinguish them either.
+- **What regulators/compliance users need to see** (Q4, Q5) is a filterable raw event feed — who accessed which account and when — not a summarized or templated report. Filters supported: account/resource ID, actor ID, and a time range (`from`/`to`), matching the filter dimensions already established for `GET /audit/events`.
+- **Retention and redaction interact with this report exactly as they do with export** (not a new decision — reapplying the ones already made in Scenario B): archived records remain visible to compliance reporting (retention changes routine-query visibility, not historical availability for this purpose), and redacted fields stay redacted (the report reads the same stored rows every other read path reads, so a redacted value is simply not there to expose).
+- **Authorization** (Q6) is the existing JWT authentication only — no separate regulator role or permission tier. `docs/assumptions.md`'s "Authorization model beyond authentication" item remains open project-wide; this doesn't resolve it, just doesn't block on it.
+- **Retention period for compliance data itself, and delivery/export format** (Q7, Q8) are not addressed by this increment — the report is a live query API, not a scheduled export or archive with its own retention policy. Scenario B's `GET /audit/export` remains the answer if a compliance user needs a portable, verifiable bundle instead of a live query.
+
+**What is implemented:** `GET /audit/compliance/account-access` — an authenticated endpoint returning matching `resourceType=ACCOUNT` audit events, optionally filtered by `resourceId`, `actorId`, and/or `from`/`to`, reusing the existing audit record store (no separate compliance database or schema).
+
+**What is intentionally not implemented** (explicitly out of scope for this increment, not overlooked):
+
+- Regulator-specific report templates or a fixed regulatory output format.
+- PDF or other rendered/printable report generation.
+- Role-based regulator user management or any authorization tier beyond the existing single-credential JWT authentication.
+- Scheduled or recurring report generation/delivery.
+- External regulator system integrations (e.g. submitting reports to a regulator's own portal or API).
+- A separate reporting database, warehouse, or read replica — this endpoint queries the same `audit_events` table as everything else.
+- Pagination on the report (matching the same accepted, disclosed limitation as `GET /audit/export` — see `docs/export-design.md`) and any `eventType`-based filtering (deliberately not built, per the "access" assumption above).

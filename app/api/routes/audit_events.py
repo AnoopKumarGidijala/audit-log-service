@@ -1,9 +1,10 @@
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
+from app.api.time_range import require_utc, validate_range
 from app.core.security import get_current_subject
 from app.db.session import get_db
 from app.schemas.audit_event import AuditEventCreate, AuditEventOut
@@ -40,13 +41,9 @@ def list_audit_events(
     db: Session = Depends(get_db),
     _subject: str = Depends(get_current_subject),
 ) -> list[AuditEventOut]:
-    start_time = _require_utc(start_time, field_name="from")
-    end_time = _require_utc(end_time, field_name="to")
-    if start_time is not None and end_time is not None and start_time > end_time:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="'from' must not be later than 'to'",
-        )
+    start_time = require_utc(start_time, field_name="from")
+    end_time = require_utc(end_time, field_name="to")
+    validate_range(start_time, end_time)
 
     return audit_event_service.list_audit_events(
         db,
@@ -59,22 +56,3 @@ def list_audit_events(
         limit=limit,
         offset=offset,
     )
-
-
-def _require_utc(value: datetime | None, *, field_name: str) -> datetime | None:
-    """Reject timezone-naive datetimes rather than guessing their offset.
-
-    Events are stored with server-generated UTC timestamps, so a
-    timezone-naive `from`/`to` value is ambiguous - we don't know what
-    timezone the caller meant. Values are normalized to UTC so the
-    comparison against stored (UTC) timestamps is unambiguous regardless of
-    which offset the caller used.
-    """
-    if value is None:
-        return None
-    if value.tzinfo is None:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"'{field_name}' must include timezone information (e.g. a 'Z' or '+00:00' offset)",
-        )
-    return value.astimezone(timezone.utc)

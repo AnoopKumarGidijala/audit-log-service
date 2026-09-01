@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from app.api.routes.audit_events import router as audit_events_router
 from app.api.routes.audit_verify import router as audit_verify_router
 from app.api.routes.auth import router as auth_router
+from app.api.routes.compliance import router as compliance_router
 from app.api.routes.export import router as export_router
 from app.api.routes.redaction import router as redaction_router
 from app.api.routes.retention import router as retention_router
@@ -28,6 +29,7 @@ app.include_router(audit_verify_router)
 app.include_router(retention_router)
 app.include_router(redaction_router)
 app.include_router(export_router)
+app.include_router(compliance_router)
 
 
 @app.get("/")

@@ -96,23 +96,34 @@ def list_all_events(db: Session) -> list[AuditEvent]:
     return db.query(AuditEvent).order_by(AuditEvent.id.asc()).all()
 
 
-def list_events_for_export(
+def list_events_including_archived(
     db: Session,
     *,
     actor_id: str | None = None,
+    resource_type: str | None = None,
     resource_id: str | None = None,
+    start_time: datetime | None = None,
+    end_time: datetime | None = None,
 ) -> list[AuditEvent]:
     """Every event matching the given filter(s), regardless of archive
-    status. Retention must not silently drop relevant history from an
-    export, so - unlike list_events() - this never filters on
-    archived_at. Ordered by id ascending, the same determinism as
-    list_events()/list_all_events().
+    status. Retention must not silently drop relevant history from a
+    result that needs the full historical record - unlike list_events()
+    (the paginated query API), this never filters on archived_at. Used by
+    export and compliance reporting, both of which need this same
+    "filtered, but archive-inclusive" shape. Ordered by id ascending, the
+    same determinism as list_events()/list_all_events().
     """
     query = db.query(AuditEvent)
     if actor_id is not None:
         query = query.filter(AuditEvent.actor_id == actor_id)
+    if resource_type is not None:
+        query = query.filter(AuditEvent.resource_type == resource_type)
     if resource_id is not None:
         query = query.filter(AuditEvent.resource_id == resource_id)
+    if start_time is not None:
+        query = query.filter(AuditEvent.timestamp >= start_time)
+    if end_time is not None:
+        query = query.filter(AuditEvent.timestamp <= end_time)
     return query.order_by(AuditEvent.id.asc()).all()
 
 

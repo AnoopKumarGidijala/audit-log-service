@@ -29,9 +29,9 @@ def export_events(
     verification recipe a recipient follows.
 
     Records keep their original previous_hash/event_hash untouched (they
-    are read straight from storage via list_events_for_export(), which -
-    unlike list_events() - never excludes archived records, so retention
-    can't silently drop relevant history from an export). Redacted records
+    are read straight from storage via list_events_including_archived(),
+    which - unlike list_events() - never excludes archived records, so
+    retention can't silently drop relevant history from an export). Redacted records
     are exported exactly as currently stored: since redaction tombstones
     the sensitive payload field(s) in place (see
     app/services/redaction_service.py), there is no separate step needed
@@ -48,7 +48,7 @@ def export_events(
     """
     reference_time = now if now is not None else datetime.now(timezone.utc)
 
-    records = repo.list_events_for_export(db, actor_id=actor_id, resource_id=resource_id)
+    records = repo.list_events_including_archived(db, actor_id=actor_id, resource_id=resource_id)
 
     manifest_entries = [{"id": record.id, "eventHash": record.event_hash} for record in records]
     manifest_hash = compute_manifest_hash(manifest_entries)
