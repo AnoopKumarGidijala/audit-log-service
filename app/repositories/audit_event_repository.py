@@ -63,3 +63,12 @@ def list_events(
     if end_time is not None:
         query = query.filter(AuditEvent.timestamp <= end_time)
     return query.order_by(AuditEvent.id.asc()).offset(offset).limit(limit).all()
+
+
+def list_all_events(db: Session) -> list[AuditEvent]:
+    """Every event in chain order, unfiltered and unpaginated.
+
+    For full chain verification, which must walk the whole history from the
+    beginning - unlike list_events(), which serves the paginated query API.
+    """
+    return db.query(AuditEvent).order_by(AuditEvent.id.asc()).all()
