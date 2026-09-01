@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -37,13 +39,27 @@ def list_events(
     *,
     actor_id: str | None = None,
     event_type: str | None = None,
+    resource_type: str | None = None,
+    resource_id: str | None = None,
+    start_time: datetime | None = None,
+    end_time: datetime | None = None,
+    limit: int,
+    offset: int,
 ) -> list[AuditEvent]:
     # Ordered by id (assignment order is serialized by lock_for_append, so
     # it matches chain/insertion order) for a deterministic, predictable
-    # sequence across repeated requests.
+    # sequence across repeated requests, including across pages.
     query = db.query(AuditEvent)
     if actor_id is not None:
         query = query.filter(AuditEvent.actor_id == actor_id)
     if event_type is not None:
         query = query.filter(AuditEvent.event_type == event_type)
-    return query.order_by(AuditEvent.id.asc()).all()
+    if resource_type is not None:
+        query = query.filter(AuditEvent.resource_type == resource_type)
+    if resource_id is not None:
+        query = query.filter(AuditEvent.resource_id == resource_id)
+    if start_time is not None:
+        query = query.filter(AuditEvent.timestamp >= start_time)
+    if end_time is not None:
+        query = query.filter(AuditEvent.timestamp <= end_time)
+    return query.order_by(AuditEvent.id.asc()).offset(offset).limit(limit).all()

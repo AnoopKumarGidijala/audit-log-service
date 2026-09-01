@@ -44,5 +44,21 @@ def list_audit_events(
     *,
     actor_id: str | None = None,
     event_type: str | None = None,
+    resource_type: str | None = None,
+    resource_id: str | None = None,
+    start_time: datetime | None = None,
+    end_time: datetime | None = None,
+    limit: int,
+    offset: int,
 ) -> list[AuditEvent]:
-    return repo.list_events(db, actor_id=actor_id, event_type=event_type)
+    return repo.list_events(
+        db,
+        actor_id=actor_id,
+        event_type=event_type,
+        resource_type=resource_type,
+        resource_id=resource_id,
+        start_time=start_time,
+        end_time=end_time,
+        limit=limit,
+        offset=offset,
+    )

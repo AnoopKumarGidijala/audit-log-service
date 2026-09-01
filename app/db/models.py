@@ -10,12 +10,15 @@ class AuditEvent(Base):
     __tablename__ = "audit_events"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    event_type = Column(String(100), nullable=False)
-    actor_id = Column(String(255), nullable=False)
-    resource_type = Column(String(100), nullable=False)
-    resource_id = Column(String(255), nullable=False)
+    # Indexed: all four are query filters on GET /audit/events, and this
+    # log is expected to grow large, so filtering needs to use an index
+    # rather than a full table scan.
+    event_type = Column(String(100), nullable=False, index=True)
+    actor_id = Column(String(255), nullable=False, index=True)
+    resource_type = Column(String(100), nullable=False, index=True)
+    resource_id = Column(String(255), nullable=False, index=True)
     payload = Column(JSON, nullable=False)
-    timestamp = Column(DateTime(timezone=True), nullable=False)
+    timestamp = Column(DateTime(timezone=True), nullable=False, index=True)
     # Linearity of the chain (at most one record follows any given record)
     # is enforced by serializing appends with the advisory lock in the
     # repository layer, not by a DB constraint here (see
