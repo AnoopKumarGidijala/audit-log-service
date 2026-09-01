@@ -96,6 +96,26 @@ def list_all_events(db: Session) -> list[AuditEvent]:
     return db.query(AuditEvent).order_by(AuditEvent.id.asc()).all()
 
 
+def list_events_for_export(
+    db: Session,
+    *,
+    actor_id: str | None = None,
+    resource_id: str | None = None,
+) -> list[AuditEvent]:
+    """Every event matching the given filter(s), regardless of archive
+    status. Retention must not silently drop relevant history from an
+    export, so - unlike list_events() - this never filters on
+    archived_at. Ordered by id ascending, the same determinism as
+    list_events()/list_all_events().
+    """
+    query = db.query(AuditEvent)
+    if actor_id is not None:
+        query = query.filter(AuditEvent.actor_id == actor_id)
+    if resource_id is not None:
+        query = query.filter(AuditEvent.resource_id == resource_id)
+    return query.order_by(AuditEvent.id.asc()).all()
+
+
 def archive_events_older_than(db: Session, cutoff: datetime) -> int:
     """Archive (soft-delete) every active record with timestamp < cutoff.
 

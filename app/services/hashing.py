@@ -52,3 +52,15 @@ def hash_field_value(value: Any) -> str:
     (not just dicts) go through the same canonicalize() function.
     """
     return hashlib.sha256(canonicalize({"value": value})).hexdigest()
+
+
+def compute_manifest_hash(entries: list[dict[str, Any]]) -> str:
+    """SHA-256 over an ordered list of entries, reusing canonicalize().
+
+    Used to give a bundle of records (see app/services/export_service.py)
+    a single self-consistency commitment over exactly which records, in
+    what order, with what event_hash values, it contains - so a recipient
+    can detect a record being added, removed, reordered, or swapped after
+    export without needing every individual record's content.
+    """
+    return hashlib.sha256(canonicalize({"entries": entries})).hexdigest()

@@ -255,3 +255,30 @@ Accepted after refinement.
 
 **Reason:**
 The refined design preserves the original audit history and records the redaction as a new append-only event while retaining tamper detection for content that was not authorized for redaction.
+
+
+
+
+## Interaction 012
+
+**Tool:** Claude Code
+
+**Task:** Improve integrity verification after redaction
+
+**Prompt Summary:**
+Asked Claude to improve the redaction design so that redacting an authorized sensitive field does not disable integrity checking for the remaining non-redacted content.
+
+**Outcome:**
+Accepted after review and testing.
+
+**Engineer Review:**
+Reviewed the updated verification behavior and confirmed that authorized redaction can occur without changing the original event hash while unexpected changes to non-redacted content remain detectable.
+
+**Decision:**
+Accepted.
+
+**Reason:**
+The refinement closes an integrity gap in the initial redaction approach while keeping redaction compatible with the existing audit history.
+
+
+

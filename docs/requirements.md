@@ -94,7 +94,7 @@ An export capability for all records belonging to a given `resourceId` or `actor
 
 The exported bundle must be self-contained and contain enough chain metadata for the recipient to independently verify that the records have not been modified since export.
 
-The exact export format and verification metadata will be decided during design.
+**Decided:** a filtered export isn't chain-adjacent (see `docs/export-design.md` §1), so records keep their original `previousHash`/`eventHash` as references into the original chain, and the bundle additionally carries a `manifestHash` — a commitment over exactly which records, in what order, it contains — so a recipient can detect any change to the bundle after export using only the bundle itself. What that does and doesn't prove without also querying the live service is documented explicitly. Full design: see `docs/export-design.md`.
 
 ---
 
