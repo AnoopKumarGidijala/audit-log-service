@@ -28,3 +28,11 @@ class AuditEvent(Base):
     # Indexed since it's looked up when validating/walking the chain.
     previous_hash = Column(String(64), nullable=False, index=True)
     event_hash = Column(String(64), nullable=False, unique=True)
+
+    # Retention metadata: NULL means active, a timestamp means the record
+    # was archived (soft-deleted) by retention, and when. Deliberately not
+    # part of the hashed content - compute_event_hash() never reads this
+    # column, so archiving a record can never change its event_hash and can
+    # never affect chain verification (see
+    # app/services/retention_service.py).
+    archived_at = Column(DateTime(timezone=True), nullable=True, index=True)

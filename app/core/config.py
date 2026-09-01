@@ -1,3 +1,4 @@
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -13,6 +14,12 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 30
     auth_username: str
     auth_password: str
+
+    # No default: the retention window is a policy decision (and may have
+    # compliance implications - see docs/requirements.md Scenario C), so it
+    # should be set deliberately rather than silently inherited from a
+    # made-up default.
+    retention_window_days: int = Field(gt=0)
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

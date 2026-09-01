@@ -205,3 +205,29 @@ Accepted.
 
 **Reason:**
 The implementation completes Scenario A tamper verification while preserving the append-only API design and clearly reporting the first detected chain violation.
+
+
+
+
+## Interaction 010
+
+**Tool:** Claude Code
+
+**Task:** Scenario B - audit retention
+
+**Prompt Summary:**
+Asked Claude to implement configurable retention for audit records while ensuring legitimate retention does not cause hash-chain verification failures.
+
+**Outcome:**
+Accepted after review and testing.
+
+**Engineer Review:**
+Reviewed the soft-delete approach using archive metadata. Confirmed that archived records are excluded from normal audit queries but remain available to chain verification and when determining the current chain tail. Verified that archive metadata is not included in the immutable event hash.
+
+During testing, timestamp modification used to create old test data was identified as invalid because it changed hashed event content. The test setup was corrected to create old records with valid hashes from the start.
+
+**Decision:**
+Accepted.
+
+**Reason:**
+Soft deletion preserves the complete physical hash chain while allowing records outside the configured retention window to be hidden from normal queries.

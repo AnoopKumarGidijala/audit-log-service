@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -24,6 +24,13 @@ def lock_for_append(db: Session) -> None:
 
 
 def get_last_event(db: Session) -> AuditEvent | None:
+    """The most recently appended record, including archived ones.
+
+    The chain is one continuous sequence regardless of retention, so a new
+    record must still chain onto the true last record even if it has since
+    been archived - retention is query-visibility metadata, not a
+    structural break in the chain.
+    """
     return db.query(AuditEvent).order_by(AuditEvent.id.desc()).first()
 
 
@@ -49,7 +56,12 @@ def list_events(
     # Ordered by id (assignment order is serialized by lock_for_append, so
     # it matches chain/insertion order) for a deterministic, predictable
     # sequence across repeated requests, including across pages.
-    query = db.query(AuditEvent)
+    #
+    # Archived (retained) records are excluded from normal query results:
+    # that's the point of retention, to reduce what's visible in everyday
+    # queries. Full history (including archived records) is still available
+    # via list_all_events(), which chain verification uses.
+    query = db.query(AuditEvent).filter(AuditEvent.archived_at.is_(None))
     if actor_id is not None:
         query = query.filter(AuditEvent.actor_id == actor_id)
     if event_type is not None:
@@ -66,9 +78,33 @@ def list_events(
 
 
 def list_all_events(db: Session) -> list[AuditEvent]:
-    """Every event in chain order, unfiltered and unpaginated.
+    """Every event in chain order, including archived ones, unfiltered and
+    unpaginated.
 
     For full chain verification, which must walk the whole history from the
-    beginning - unlike list_events(), which serves the paginated query API.
+    beginning - unlike list_events(), which serves the paginated query API
+    and excludes archived records. Archived records must stay included
+    here: a later record's previous_hash can point at an archived record's
+    event_hash, so skipping archived records would make verification see a
+    gap in the chain that isn't actually there - exactly the false break
+    retention must not cause.
     """
     return db.query(AuditEvent).order_by(AuditEvent.id.asc()).all()
+
+
+def archive_events_older_than(db: Session, cutoff: datetime) -> int:
+    """Archive (soft-delete) every active record with timestamp < cutoff.
+
+    Only ever sets archived_at - never touches any hash-relevant field, so
+    it cannot affect an event_hash or a previous_hash link. A single bulk
+    UPDATE at the database level (not a Python loop over loaded rows), so
+    the cost doesn't depend on how many records already exist.
+    """
+    archived_count = (
+        db.query(AuditEvent)
+        .filter(AuditEvent.archived_at.is_(None))
+        .filter(AuditEvent.timestamp < cutoff)
+        .update({AuditEvent.archived_at: datetime.now(timezone.utc)}, synchronize_session=False)
+    )
+    db.commit()
+    return archived_count

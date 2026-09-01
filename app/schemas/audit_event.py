@@ -26,3 +26,4 @@ class AuditEventOut(BaseModel):
     timestamp: datetime
     previous_hash: str = Field(alias="previousHash")
     event_hash: str = Field(alias="eventHash")
+    archived_at: datetime | None = Field(default=None, alias="archivedAt")
