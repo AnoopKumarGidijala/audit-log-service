@@ -69,3 +69,28 @@ Accepted with minor changes.
 
 **Reason:**
 The proposed architecture was simple and suitable for the prototype. Minor changes were made to keep database responsibilities clearly separated from business logic and avoid implying PostgreSQL itself is append-only. 
+
+
+
+## Interaction 004
+
+**Tool:** Claude Code
+
+**Task:** Initial FastAPI application setup
+
+**Prompt Summary:**
+Asked Claude to create the initial FastAPI application structure, a simple root endpoint, dependency file, and a basic API test.
+
+**Outcome:**
+Accepted after review.
+
+**Engineer Review:**
+Reviewed the generated application structure and test. Started the FastAPI application locally, verified the root endpoint and Swagger UI, and ran the pytest test successfully.
+
+**Decision:**
+Accepted.
+
+**Reason:**
+The generated setup provided a small working FastAPI foundation without introducing database or audit functionality prematurely.
+
+
