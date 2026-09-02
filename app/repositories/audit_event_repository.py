@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.db.models import AuditEvent
+from app.db.models import AuditEvent, IdempotencyKey
 
 # Arbitrary fixed key identifying "appending an audit event" for Postgres
 # advisory locks. Only meaningful as a lock namespace, not stored data.
@@ -34,15 +34,54 @@ def get_last_event(db: Session) -> AuditEvent | None:
     return db.query(AuditEvent).order_by(AuditEvent.id.desc()).first()
 
 
-def create_event(db: Session, event: AuditEvent) -> AuditEvent:
+def insert_event(db: Session, event: AuditEvent) -> AuditEvent:
+    """Stage a new event for insertion without committing. audit_event_service
+    always follows this with a single db.commit() after also handling any
+    idempotency-key bookkeeping (see app/services/audit_event_service.py) -
+    the event row and its idempotency row, when there is one, must commit
+    together, atomically, in the same transaction the advisory lock holds.
+    A flush (not a commit) is enough to assign the event its id, which the
+    idempotency row needs as a foreign key.
+    """
     db.add(event)
-    db.commit()
-    db.refresh(event)
+    db.flush()
     return event
 
 
 def get_event(db: Session, event_id: int) -> AuditEvent | None:
     return db.query(AuditEvent).filter(AuditEvent.id == event_id).first()
+
+
+def get_idempotency_record(db: Session, *, username: str, idempotency_key: str) -> IdempotencyKey | None:
+    return (
+        db.query(IdempotencyKey)
+        .filter(IdempotencyKey.username == username, IdempotencyKey.idempotency_key == idempotency_key)
+        .first()
+    )
+
+
+def record_idempotency_key(
+    db: Session,
+    *,
+    username: str,
+    idempotency_key: str,
+    request_fingerprint: str,
+    event_id: int,
+    now: datetime,
+) -> IdempotencyKey:
+    """Stage the idempotency bookkeeping row without committing - see
+    insert_event() above; the caller (audit_event_service) commits both
+    together."""
+    record = IdempotencyKey(
+        username=username,
+        idempotency_key=idempotency_key,
+        request_fingerprint=request_fingerprint,
+        event_id=event_id,
+        created_at=now,
+    )
+    db.add(record)
+    db.flush()
+    return record
 
 
 def list_events(

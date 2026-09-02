@@ -117,6 +117,8 @@ Because each new record must reference the `event_hash` of the current last reco
 
 **Decided:** appends are serialized with a PostgreSQL transaction-level advisory lock (`pg_advisory_xact_lock`), taken in the repository layer before the last record is read, and released automatically when the append transaction commits or rolls back. This guarantees only one write can be constructing the "next" record at a time, keeping the chain a single linear sequence. The trade-off is that audit-event writes are serialized — concurrent write requests queue up behind the lock rather than committing in parallel — which is acceptable for this service's expected write volume.
 
+This same lock is what makes idempotent retries of `POST /audit/events` safe under concurrency (an optional `Idempotency-Key` header - see `docs/idempotency-design.md`): the idempotency check, the event insert, and its idempotency bookkeeping row all happen inside the one transaction the lock is held for, so two concurrent retries can never both pass the "is this key already used" check before either has committed.
+
 ## Future Extensions (Scenario B — Not Designed Yet)
 
 The following are anticipated extensions to this architecture. They are noted here as future work only; their implementation approach is intentionally left undesigned pending further requirements discussion (see `requirements.md` and `assumptions.md`):

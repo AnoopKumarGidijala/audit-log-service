@@ -56,6 +56,34 @@ def hash_field_value(value: Any) -> str:
     return hashlib.sha256(canonicalize({"value": value})).hexdigest()
 
 
+def compute_request_fingerprint(
+    *,
+    tenant_id: str,
+    event_type: str,
+    actor_id: str,
+    resource_type: str,
+    resource_id: str,
+    payload: dict[str, Any],
+) -> str:
+    """SHA-256 over the caller-controlled content of a create-audit-event
+    request, reusing canonicalize(). Used to detect a conflicting reuse of
+    an idempotency key (see app/services/audit_event_service.py) -
+    deliberately excludes timestamp/previous_hash, which are server-
+    generated and would differ between the original request and a retry
+    even when the retry is a legitimate, intended replay of the same
+    logical request.
+    """
+    content = {
+        "tenantId": tenant_id,
+        "eventType": event_type,
+        "actorId": actor_id,
+        "resourceType": resource_type,
+        "resourceId": resource_id,
+        "payload": payload,
+    }
+    return hashlib.sha256(canonicalize(content)).hexdigest()
+
+
 def compute_manifest_hash(entries: list[dict[str, Any]]) -> str:
     """SHA-256 over an ordered list of entries, reusing canonicalize().
 

@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.time_range import require_utc, validate_range
@@ -11,6 +11,7 @@ from app.core.security import CurrentUser
 from app.db.session import get_db
 from app.schemas.audit_event import AuditEventCreate, AuditEventOut
 from app.services import audit_event_service
+from app.services.audit_event_service import IdempotencyKeyConflictError
 
 router = APIRouter(tags=["audit"])
 
@@ -24,6 +25,9 @@ MAX_LIMIT = 200
 @router.post("/audit/events", response_model=AuditEventOut, status_code=status.HTTP_201_CREATED)
 def create_audit_event(
     event_in: AuditEventCreate,
+    idempotency_key: Annotated[
+        str | None, Header(alias="Idempotency-Key", min_length=1, max_length=255)
+    ] = None,
     db: Session = Depends(get_db),
     current_user: CurrentUser = Depends(require_roles(Role.WRITER, Role.ADMIN)),
 ) -> AuditEventOut:
@@ -32,7 +36,16 @@ def create_audit_event(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Authenticated user has no tenant configured; cannot create audit events.",
         )
-    return audit_event_service.create_audit_event(db, event_in, tenant_id=current_user.tenant_id)
+    try:
+        return audit_event_service.create_audit_event(
+            db,
+            event_in,
+            tenant_id=current_user.tenant_id,
+            idempotency_key=idempotency_key,
+            requested_by=current_user.username,
+        )
+    except IdempotencyKeyConflictError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
 
 @router.get("/audit/events", response_model=list[AuditEventOut])

@@ -1,4 +1,4 @@
-from sqlalchemy import JSON, Column, DateTime, Integer, String
+from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, UniqueConstraint
 
 from app.db.base import Base
 
@@ -67,3 +67,41 @@ class AuditEvent(Base):
     # having to retain the value itself. Not exposed via the query API (see
     # docs/redaction-design.md for why).
     redacted_field_hashes = Column(JSON, nullable=True)
+
+
+class IdempotencyKey(Base):
+    """Records that a given (username, idempotency_key) pair has already
+    produced a specific audit event, so a retried POST /audit/events can be
+    recognized and answered without appending a second event (see
+    app/services/audit_event_service.py and docs/idempotency-design.md).
+
+    Deliberately a separate table from audit_events, not extra columns on
+    it: this is bookkeeping for the write API's retry safety, not part of
+    the audit record itself, and is never read by chain verification.
+
+    The unique constraint on (username, idempotency_key) is a DB-enforced
+    backstop for the exact invariant this feature exists to guarantee -
+    matching the precedent already set by event_hash's own unique=True
+    above. It is expected to never actually fire: create_audit_event()
+    always calls lock_for_append() first, which already fully serializes
+    every append (idempotent or not) via a single global advisory lock, so
+    two concurrent requests can never both pass the "is this key already
+    used" check before either has committed. If this constraint is ever
+    violated in practice, that means the locking discipline was bypassed
+    somewhere - a real bug worth a loud failure, not a case to silently
+    handle here.
+    """
+
+    __tablename__ = "audit_event_idempotency_keys"
+    __table_args__ = (UniqueConstraint("username", "idempotency_key", name="uq_idempotency_username_key"),)
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    username = Column(String(255), nullable=False, index=True)
+    idempotency_key = Column(String(255), nullable=False)
+    # SHA-256 over the caller-supplied request content (see
+    # app/services/hashing.py:compute_request_fingerprint) - compared
+    # against a retry's own fingerprint to distinguish a legitimate replay
+    # from a conflicting reuse of the same key with different content.
+    request_fingerprint = Column(String(64), nullable=False)
+    event_id = Column(Integer, ForeignKey("audit_events.id"), nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False)

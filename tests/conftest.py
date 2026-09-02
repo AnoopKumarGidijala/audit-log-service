@@ -19,7 +19,10 @@ def _create_tables():
 def _clean_audit_events():
     yield
     with engine.begin() as conn:
-        conn.execute(text("TRUNCATE TABLE audit_events RESTART IDENTITY"))
+        # audit_event_idempotency_keys has a FK to audit_events, so both
+        # must be truncated together (or CASCADE) - truncating
+        # audit_events alone fails with a FK-referenced-table error.
+        conn.execute(text("TRUNCATE TABLE audit_events, audit_event_idempotency_keys RESTART IDENTITY"))
 
 
 @pytest.fixture

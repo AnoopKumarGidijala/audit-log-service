@@ -351,3 +351,25 @@ Reviewed negative tests for incorrect passwords, expired tokens, invalid signatu
 **Decision:** Accepted.
 
 **Reason:** The change strengthens identity verification and token validation while keeping the authentication model appropriately small for the prototype.
+
+
+
+## Interaction 016
+
+**Tool:** Claude Code
+
+**Task:** Add idempotency for audit event creation
+
+**Prompt Summary:** Asked Claude to make audit event creation safe for client retries by supporting an idempotency key scoped to the authenticated caller. Identical retries should return the original event, conflicting reuse should be rejected, and concurrent duplicate requests must not create multiple audit records.
+
+**Outcome:** Accepted after review and testing.
+
+**Engineer Review:** Reviewed the idempotency design and confirmed the key is supplied through a request header and does not become part of the immutable audit-event hash content. Idempotency is scoped by authenticated caller and key, and a request fingerprint is used to distinguish legitimate retries from conflicting key reuse.
+
+Reviewed the transaction flow and confirmed the audit event and idempotency record are created within the same advisory-lock-protected transaction. This prevents a concurrent retry from creating a second event between the event insert and idempotency record creation.
+
+Reviewed tests for normal creation, identical retries, conflicting key reuse, caller isolation and concurrent duplicate requests against PostgreSQL. Also confirmed the resulting audit chain remains intact.
+
+**Decision:** Accepted.
+
+**Reason:** The change prevents duplicate audit events caused by client retries while preserving the existing append-only hash-chain semantics and transaction safety.
