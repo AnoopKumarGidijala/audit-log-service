@@ -397,3 +397,28 @@ The concurrency tests were executed repeatedly to check for timing-related flaki
 **Decision:** Accepted.
 
 **Reason:** The tests provide direct evidence that the existing transaction and advisory-lock design prevents chain forks, rolls back failed writes cleanly and remains safe under concurrent retries.
+
+
+
+## Interaction 018
+
+**Tool:** Claude Code
+
+**Task:** Make the test environment reproducible and enforce coverage
+
+**Prompt Summary:** Asked Claude to make the PostgreSQL-backed test suite reproducible for a fresh reviewer, isolate tests from the normal development database, enforce line and branch coverage with a minimum 70 percent threshold, and document the exact test workflow.
+
+**Outcome:** Accepted after review and testing.
+
+**Engineer Review:** Reviewed the dedicated Docker Compose test database and confirmed it is isolated from the normal development database. Verified that the test configuration is loaded before application imports and that an additional runtime guard prevents tests from running against a database that is not explicitly identified as a test database.
+
+Reviewed the pytest coverage configuration and confirmed branch coverage is enabled with a 70 percent minimum threshold. The failure path was also checked to ensure the test command returns a non-zero exit code when coverage falls below the required level.
+
+Reviewed the documented setup from a fresh environment. The complete suite passed with 159 tests and 99.57 percent coverage without weakening existing tests.
+
+**Decision:** Accepted.
+
+**Reason:** The change makes the test suite safe and reproducible for an independent reviewer while providing measurable and automatically enforced coverage evidence.
+
+
+

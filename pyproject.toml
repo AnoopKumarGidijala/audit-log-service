@@ -1,0 +1,20 @@
+# Coverage configuration only - this project has no build/packaging step
+# (see requirements.txt), so there is no [build-system] section here.
+#
+# Kept deliberately separate from the pytest command itself (no
+# [tool.pytest.ini_options] addopts enabling --cov by default): "run the
+# tests" and "run the tests with coverage" are two distinct, separately
+# documented commands (see the "Testing" section of README.md) - baking
+# coverage into every plain `pytest` invocation would make that
+# distinction disappear and slow down the common case.
+[tool.coverage.run]
+source = ["app"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+# `pytest --cov=app` (with no --cov-fail-under on the command line) reads
+# this from coverage.py's own config, so the documented coverage command
+# fails on a threshold breach without needing to spell out the number
+# every time it's typed. Requirements.md's stated minimum is 70%.
+fail_under = 70

@@ -1,3 +1,5 @@
+import os
+
 from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -90,7 +92,12 @@ class Settings(BaseSettings):
     # made-up default.
     retention_window_days: int = Field(gt=0)
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    # Which dotenv file to load - always ".env" for the real application
+    # (a normal `uvicorn` run never sets ENV_FILE). tests/conftest.py sets
+    # ENV_FILE=.env.test unconditionally, before this module is first
+    # imported, so the test suite always loads its own dedicated
+    # configuration - see the "Testing" section of README.md.
+    model_config = SettingsConfigDict(env_file=os.getenv("ENV_FILE", ".env"), extra="ignore")
 
     @field_validator("secret_key")
     @classmethod

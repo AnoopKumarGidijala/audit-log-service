@@ -11,8 +11,8 @@ VALID_EVENT = {
 
 _ADMIN = next(u for u in settings.auth_users if u.role == Role.ADMIN)
 # AUTH_USERS stores only a password hash (see app/core/passwords.py) - the
-# raw password every seeded user in .env shares is known out of band.
-_ADMIN_PASSWORD = "local_dev_password"
+# raw password every seeded user in .env.test shares is known out of band.
+_ADMIN_PASSWORD = "test-password"
 
 
 def test_login_success(client):

@@ -1,12 +1,47 @@
+import os
+
+# Tests must never run against a developer's normal local database - they
+# create tables and destructively truncate them after every test (see
+# _clean_audit_events below). Setting this here, unconditionally, before
+# anything imports app.core.config (which reads it to pick a dotenv file),
+# means "just run pytest" always loads the dedicated test configuration
+# (.env.test) - no environment variable to remember, no way to forget it.
+# See the "Testing" section of README.md.
+os.environ["ENV_FILE"] = ".env.test"
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
+from sqlalchemy.engine import make_url
 
 from app.core.config import settings
 from app.core.roles import Role
 from app.db.base import Base
 from app.db.session import engine
 from app.main import app
+
+
+def _assert_using_a_test_database() -> None:
+    """A second, independent safety net beyond the ENV_FILE override above:
+    even if something else in the environment overrode ENV_FILE back to a
+    real .env, refuse outright to run against a database whose name
+    doesn't look like a dedicated test database. This suite is
+    destructive (see _clean_audit_events), so getting this wrong would be
+    real data loss, not just a wrong test result.
+    """
+    database_name = make_url(settings.database_url).database or ""
+    if not database_name.endswith("_test"):
+        raise RuntimeError(
+            f"Refusing to run tests: DATABASE_URL points at {database_name!r}, which "
+            "doesn't look like a dedicated test database (its name doesn't end in "
+            "'_test'). The test suite creates and truncates tables destructively and "
+            "must only run against the database provisioned by "
+            "docker-compose.test.yml (see the 'Testing' section of README.md), not a "
+            "developer's normal local database."
+        )
+
+
+_assert_using_a_test_database()
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -30,12 +65,12 @@ def client():
     return TestClient(app)
 
 
-# AUTH_USERS in .env stores only Argon2 password hashes (see
+# AUTH_USERS in .env.test stores only Argon2 password hashes (see
 # app/core/passwords.py) - the plaintext is not recoverable from
 # settings.auth_users, so tests that need to log in as a seeded user have
-# to know the raw password out of band. Every seed user in .env shares this
-# one password; if .env changes, this must change with it.
-_SEED_PASSWORD = "local_dev_password"
+# to know the raw password out of band. Every seed user in .env.test
+# shares this one password; if .env.test changes, this must change with it.
+_SEED_PASSWORD = "test-password"
 
 
 def _headers_for_username(client, username: str) -> dict:

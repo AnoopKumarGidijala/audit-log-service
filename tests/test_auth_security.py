@@ -19,7 +19,7 @@ from app.core.roles import Role
 from app.core.security import JWT_ALGORITHM
 
 _ADMIN = next(u for u in settings.auth_users if u.role == Role.ADMIN)
-_SEED_PASSWORD = "local_dev_password"
+_SEED_PASSWORD = "test-password"
 
 # A protected endpoint used purely to exercise the authentication layer -
 # any role-gated route would do, since every failure mode tested here is

@@ -30,6 +30,9 @@ htmlcov/
 .env
 .env.*
 !.env.example
+# Test-only config, no real secrets - see the "Testing" section of
+# README.md and app/core/config.py.
+!.env.test
 
 # --- IntelliJ / PyCharm ---
 .idea/

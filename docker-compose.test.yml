@@ -1,0 +1,26 @@
+# A dedicated PostgreSQL instance for running the test suite - completely
+# separate from docker-compose.yml's development database (different
+# container, volume, host port, and database name), so the test suite can
+# never accidentally point at a developer's normal local database. See the
+# "Testing" section of README.md.
+#
+# Credentials here are deliberately hardcoded, not sourced from a .env
+# file: this database only ever holds throwaway data recreated on every
+# test run, so there's nothing to keep secret, and hardcoding avoids
+# docker compose's own ${VAR} interpolation of a project-root .env file
+# (which is unrelated to, and must not be confused with, the application's
+# own .env/.env.test - see app/core/config.py).
+services:
+  postgres_test:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: audit_test
+      POSTGRES_PASSWORD: audit_test_password
+      POSTGRES_DB: audit_log_test
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_test_data:
