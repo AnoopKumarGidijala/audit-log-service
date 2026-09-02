@@ -1,6 +1,6 @@
 # Verifiable Bulk Export — Design
 
-Scenario B, `docs/requirements.md` item 10. This document explains why a filtered export can't simply replay the existing chain-verification logic, the chosen bundle format, the exact recipe a recipient follows to verify it, and — as required — precisely what that recipient can and cannot prove without going back to the live service.
+Scenario B, `docs/requirements.md` item 10 (`B3`). This document explains why a filtered export can't simply replay the existing chain-verification logic, the chosen bundle format, the exact recipe a recipient follows to verify it, and — as required — precisely what that recipient can and cannot prove without going back to the live service.
 
 ## 1. Why a filtered subset isn't chain-verifiable the normal way
 
@@ -68,4 +68,5 @@ No special handling was needed here, by construction: redaction (`docs/redaction
 - **The manifest hash is a plain SHA-256, not a signature or HMAC** — protects against careless/accidental post-export corruption, not a fully capable attacker with the bundle in hand (§2, §3). Consistent with, not weaker than, every other integrity mechanism already in this service.
 - **Completeness is not provable from the bundle** (§4) — only re-querying the live service can confirm no matching record was silently omitted.
 - **An export is a point-in-time snapshot** — subsequent legitimate retention/redaction on the same records isn't reflected and isn't something the bundle can detect on its own (§4).
-- **Not covered:** authorization for *who* may export beyond the existing single-user JWT authentication (same open, project-wide item as retention/redaction); export formats other than JSON (e.g. CSV, a signed PDF) — `docs/assumptions.md`'s "Export format" item is resolved to JSON with the bundle described here.
+- **Authorization** for *who* may export was open when this was first written; it's since been decided project-wide - `GET /audit/export` requires the `auditor` or `admin` role (see `docs/authorization-design.md`), and is additionally rate-limited (see `docs/defensive-limits-design.md`).
+- **Not covered:** export formats other than JSON (e.g. CSV, a signed PDF) — `docs/assumptions.md`'s "Export format" item is resolved to JSON with the bundle described here.

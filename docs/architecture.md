@@ -1,8 +1,8 @@
 # Architecture
 
-This document describes the initial architecture for the tamper-evident audit log service. It covers Scenario A (the core service) in detail. Scenario B features are mentioned only as future extension points — their implementation is not designed here.
+This document describes the layered request-flow architecture of the tamper-evident audit log service, in the depth it was originally designed at: Scenario A (the core service). That layering (API → service → repository → PostgreSQL) is what every later increment - Scenario B (retention, redaction, export), Scenario C (compliance reporting), and the cross-cutting hardening built on top (authorization, auth hardening, idempotency, defensive limits, security logging, migrations) - was built directly on top of, unchanged. Each of those has its own focused design document (see "Design Documents" near the end of this file); this document is not being kept in sync with every detail of them, only with the core flow it originally described.
 
-This is an initial architecture for review, not a final design. It will be refined during implementation.
+For a complete, up-to-date, reviewer-oriented description of the whole service as it exists today, see the top-level `README.md` - it's the document to read first.
 
 ## Guiding Principle
 
@@ -77,7 +77,9 @@ Each layer only talks to the layer directly below it.
 | `GET /audit/events` | Query audit events with filters and pagination. |
 | `GET /audit/verify` | Verify the integrity of the hash chain. |
 
-Request/response schemas, status codes, and error formats are not finalized and will be defined during implementation.
+These four are Scenario A's own endpoints, in the scope this document was originally written for. The service has grown well beyond them since - retention, redaction, export, compliance reporting, and two health endpoints - see README.md's "API Overview" for the complete, current list; this table is kept here only as the historical Scenario A subset.
+
+Request/response schemas, status codes, and error formats are all finalized and implemented (see `app/schemas/` and `app/api/routes/`) - this line originally said otherwise, written before implementation began.
 
 ## Audit Event Data Model
 
@@ -109,7 +111,9 @@ Conceptual fields for a stored audit record (not a database schema yet):
 
 The same logical event data must always hash to the same value. JSON does not guarantee a stable field order, and formatting differences (whitespace, key order, number formatting) would produce different byte sequences — and therefore different hashes — for what is logically the same data.
 
-Before computing `event_hash`, the record's content must be converted to a **canonical representation** (e.g. keys sorted deterministically, fixed whitespace/encoding rules) so that hashing is deterministic and reproducible. The exact canonicalization method (e.g. a specific canonical JSON scheme) is not finalized and will be decided during implementation.
+Before computing `event_hash`, the record's content must be converted to a **canonical representation** (e.g. keys sorted deterministically, fixed whitespace/encoding rules) so that hashing is deterministic and reproducible.
+
+**Decided and implemented:** `app/services/hashing.py:canonicalize()` - `json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=True)`, encoded to UTF-8. Sorted keys make dict insertion order irrelevant; compact separators (no incidental whitespace) and `ensure_ascii=True` make the byte output fully deterministic regardless of what produced the input dict. Every hash this service computes - `event_hash`, redaction's field-value and content commitments, export's manifest hash, and the idempotency request fingerprint - reuses this one function, not a separate canonicalization scheme each.
 
 ## Concurrency Concern: Conflicting Writes
 
@@ -119,17 +123,21 @@ Because each new record must reference the `event_hash` of the current last reco
 
 This same lock is what makes idempotent retries of `POST /audit/events` safe under concurrency (an optional `Idempotency-Key` header - see `docs/idempotency-design.md`): the idempotency check, the event insert, and its idempotency bookkeeping row all happen inside the one transaction the lock is held for, so two concurrent retries can never both pass the "is this key already used" check before either has committed.
 
-## Future Extensions (Scenario B — Not Designed Yet)
+## Scenario B and C: Implemented on Top of This Layering, Not Designed Here
 
-The following are anticipated extensions to this architecture. They are noted here as future work only; their implementation approach is intentionally left undesigned pending further requirements discussion (see `requirements.md` and `assumptions.md`):
+This document originally listed retention, redaction, and export as undesigned future extensions. All three are now implemented, each with its own focused design document, and none of them required changing the layering described above - they're new services/repository functions/routes slotted into the same API → service → repository → PostgreSQL flow:
 
-- **Retention** — archiving or soft-deleting records older than a configurable window, while keeping chain verification valid.
-- **Redaction** — redacting sensitive `payload` fields without invalidating the hash chain.
-- **Export** — producing a verifiable bundle of records for a given `resourceId` or `actorId`.
+- **Retention** (`[B1]`) — soft-delete via a nullable `archived_at` column, deliberately outside the hashed content. See `docs/assumptions.md`'s retention entry and `app/services/retention_service.py`.
+- **Redaction** (`[B2]`) — tombstones a payload field in place without ever recomputing `event_hash`, backed by a companion audit event carrying a content commitment. See `docs/redaction-design.md`.
+- **Export** (`[B3]`) — a self-contained JSON bundle with a manifest hash, for a filtered (non-chain-adjacent) subset of records. See `docs/export-design.md`.
+- **Compliance reporting** (`[C1]`, Scenario C) — reuses this document's layering unchanged, scoped to `resourceType="ACCOUNT"` events. See `docs/requirements.md` Scenario C, "Decided (Prototype Scope)".
+
+## Design Documents
+
+Later, cross-cutting work - beyond Scenario A/B/C - also builds on this same layering without changing it, each documented separately: idempotent writes (`docs/idempotency-design.md`), the authorization/role model (`docs/authorization-design.md`), authentication hardening (`docs/auth-hardening-design.md`), defensive limits and rate limiting (`docs/defensive-limits-design.md`), and structured security logging (`docs/security-logging-design.md`). `README.md` ties all of this together for a reviewer; this document remains the detailed record of Scenario A's own request flow and its concurrency design above.
 
 ## Out of Scope for This Document
 
-- Database schema / migrations
+- Database schema / migration mechanics — decided (Alembic); see README.md's "Setup" section and `docs/assumptions.md`.
 - Python module structure or dependencies
-- Detailed request/response contracts
-- Scenario C (compliance reporting) design — this document remains Scenario-A-scoped; the compliance reporting endpoint reuses this document's existing layering unchanged (see `docs/requirements.md` Scenario C, "Decided (Prototype Scope)" for what was implemented and why)
+- Detailed request/response contracts — see `app/schemas/` and README.md's "API Overview" instead.

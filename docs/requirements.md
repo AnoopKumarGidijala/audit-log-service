@@ -1,11 +1,15 @@
 # Requirements
 
-This document summarizes the requirements for the tamper-evident audit log service, organized by scenario. Scenario A is the core service. Scenarios B and C extend it. We will decide later how much of Scenario C we implement.
+This document summarizes the requirements for the tamper-evident audit log service, organized by scenario. Scenario A is the core service. Scenarios B and C extend it. All of Scenario A, all of Scenario B, and the prototype-scoped subset of Scenario C described below are implemented — see README.md for a reviewer-oriented walkthrough of the running service, and the "Requirement-to-Test Traceability" table there for exactly which automated tests exercise which item here.
+
+Each requirement below has a stable ID (`A1`–`A7`, `B1`–`B3`, `C1`) used by that traceability table and by cross-references elsewhere in `docs/`. IDs are independent of the item numbering already used in this document's prose (kept as originally written, since other design documents already cite it by number) - `A1` is item 1, `B2` is item 9, and so on.
+
+This document also predates several cross-cutting hardening decisions made later, beyond the original three scenarios (authentication hardening, an authorization/role model, idempotent writes, defensive limits, structured security logging, Alembic migrations) - those aren't given IDs here since they aren't part of the original Scenario A/B/C requirements; see `docs/assumptions.md` for the full list and each one's dedicated design document.
 
 ## Cross-Cutting Requirements
 
 - **Authentication:** All APIs are authenticated. Unauthenticated requests must be rejected.
-- **Test coverage:** Minimum required test coverage is 70%. We will target around 80% to maintain a safe margin.
+- **Test coverage:** Minimum required test coverage is 70%. We will target around 80% to maintain a safe margin. Enforced automatically - `pytest --cov=app` fails the command if coverage drops below 70% (see `pyproject.toml`'s `fail_under` and README.md's "Testing" section).
 
 ---
 
@@ -13,11 +17,11 @@ This document summarizes the requirements for the tamper-evident audit log servi
 
 A tamper-evident audit log service that maintains an append-only history of events.
 
-### 1. Append-Only Audit Events
+### 1. Append-Only Audit Events `[A1]`
 
 Audit records are append-only. There are no update or delete APIs for existing audit records — once written, a record cannot be modified or removed through normal service operation.
 
-### 2. Write API
+### 2. Write API `[A2]`
 
 An API for submitting a new audit event. Each event contains, at minimum:
 
@@ -30,7 +34,9 @@ An API for submitting a new audit event. Each event contains, at minimum:
 | `payload` | Structured details about the event |
 | `timestamp` | When the event occurred |
 
-### 3. Query API with Filters
+**Decided:** `timestamp` is server-generated (UTC, at the moment the event is durably appended), not a value the client submits — the write request body (`POST /audit/events`) accepts only `eventType`/`actorId`/`resourceType`/`resourceId`/`payload`. This avoids trusting a client-supplied time for ordering/integrity purposes and sidesteps timezone ambiguity (see `docs/assumptions.md`'s Initial Technical Choices table). The table above still lists `timestamp` as a field every *stored* record has, which remains true - it's just never client input.
+
+### 3. Query API with Filters `[A3]`
 
 An API for retrieving audit events, supporting filtering by:
 
@@ -39,11 +45,11 @@ An API for retrieving audit events, supporting filtering by:
 - `eventType`
 - `from` / `to` time range
 
-### 4. Pagination
+### 4. Pagination `[A4]`
 
 Query results must be paginated rather than returned in full, to support large result sets.
 
-### 5. Hash-Chain Tamper Evidence
+### 5. Hash-Chain Tamper Evidence `[A5]`
 
 Each stored record includes:
 
@@ -52,7 +58,7 @@ Each stored record includes:
 
 This forms a hash chain across the full sequence of records. The first record in the chain uses a defined genesis value in place of a "previous hash."
 
-### 6. Verification Endpoint
+### 6. Verification Endpoint `[A6]`
 
 `GET /audit/verify`
 
@@ -62,7 +68,9 @@ Verifies the full hash chain and reports:
 - the first inconsistent record if verification fails, and
 - the type of violation detected.
 
-### 7. Tamper Detection Demonstration
+**Implemented response shape** (`ChainVerificationResultOut`): `intact` (bool), `recordsChecked` (how many records were examined before either finding a problem or confirming the whole chain), and `violation` (`null` when intact, otherwise `{recordId, violationType, detail}`). Verification stops at the first inconsistency rather than continuing past it, since every later check assumes everything before it already passed.
+
+### 7. Tamper Detection Demonstration `[A7]`
 
 The service should allow us to demonstrate tamper detection end-to-end:
 
@@ -78,17 +86,19 @@ The service should allow us to demonstrate tamper detection end-to-end:
 
 Extends the core service with retention, structured redaction, and bulk export.
 
-### 8. Retention
+### 8. Retention `[B1]`
 
 Records older than a configurable window should be archivable or soft-deletable. Chain verification must be able to account for legitimately archived records without reporting a false chain break.
 
-### 9. Structured Redaction
+**Decided:** archive (soft-delete) via a nullable `archived_at` timestamp column on `AuditEvent` - not physical deletion, not a second cold-storage table. `archived_at` is deliberately excluded from the hashed content, so archiving a record never changes its `event_hash`, and chain verification needs zero special-casing to keep working correctly: it walks every record (archived or not) exactly as before, while the everyday query API (`GET /audit/events`) excludes archived records by default. `POST /audit/retention/apply` (admin-only) archives every record older than `RETENTION_WINDOW_DAYS`. Full reasoning and the alternatives considered: see `docs/assumptions.md`'s retention entry.
+
+### 9. Structured Redaction `[B2]`
 
 Some fields inside a record's `payload` may contain sensitive information (e.g. account numbers, personal identifiers). These fields should be redactable to meet privacy requirements, without losing the ability to verify the audit history.
 
 **Decided:** redacting a field inside `payload` would, if hashed naively, break the chain as originally computed. The chosen approach — freeze the record's existing `event_hash` (never recompute it), tombstone the specific redacted field(s) in place, and require a companion audit event logging the redaction — resolves this without changing the hash format, so every record already in the chain is immediately redactable with no migration. Full design, alternatives considered, and trade-offs: see `docs/redaction-design.md`.
 
-### 10. Verifiable Bulk Export
+### 10. Verifiable Bulk Export `[B3]`
 
 An export capability for all records belonging to a given `resourceId` or `actorId`.
 
@@ -98,7 +108,7 @@ The exported bundle must be self-contained and contain enough chain metadata for
 
 ---
 
-## Scenario C - Compliance Reporting
+## Scenario C - Compliance Reporting `[C1]`
 
 The requirement as given is:
 

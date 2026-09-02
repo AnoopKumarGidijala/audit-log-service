@@ -1,6 +1,6 @@
 # Structured Redaction — Design
 
-Scenario B, `docs/requirements.md` item 9. This document reviews the current hash-chain design, analyzes the practical options for redacting sensitive `payload` fields without invalidating chain verification, and records the chosen approach, the alternatives considered, and its trade-offs and limitations. The implementation follows this design (see `app/services/redaction_service.py`, `app/db/models.py`, `app/services/chain_verification_service.py`).
+Scenario B, `docs/requirements.md` item 9 (`B2`). This document reviews the current hash-chain design, analyzes the practical options for redacting sensitive `payload` fields without invalidating chain verification, and records the chosen approach, the alternatives considered, and its trade-offs and limitations. The implementation follows this design (see `app/services/redaction_service.py`, `app/db/models.py`, `app/services/chain_verification_service.py`).
 
 ## 1. The problem, precisely
 
@@ -135,6 +135,6 @@ For a record that's never been redacted (every record today), this is byte-for-b
 
 ## 9. Not covered by this design
 
-- Authorization for *who* may call the redaction endpoint beyond the existing single-user JWT authentication — `docs/assumptions.md`'s "Authorization model beyond authentication" item remains open project-wide, not specific to redaction.
+- Authorization for *who* may call the redaction endpoint was open when this design was first written; it's since been decided project-wide (not specific to redaction) - `POST /audit/events/{id}/redact` requires the `admin` role. See `docs/authorization-design.md`.
 - Nested/deep redaction within a payload field's own structure — this design only redacts top-level `payload` keys, matching requirements.md item 9's "fields inside a record's payload."
 - Retention interaction: redaction and archival (`archived_at`) are independent, orthogonal metadata — a record can be archived, redacted, both, or neither, and neither operation checks the other's flag. Not something this increment needed to resolve further.
