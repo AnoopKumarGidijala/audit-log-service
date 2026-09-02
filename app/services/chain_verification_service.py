@@ -46,6 +46,7 @@ class ChainVerificationResult:
 
 def _content_hash(event: AuditEvent) -> str:
     return compute_event_hash(
+        tenant_id=event.tenant_id,
         event_type=event.event_type,
         actor_id=event.actor_id,
         resource_type=event.resource_type,

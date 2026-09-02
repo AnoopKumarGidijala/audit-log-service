@@ -22,6 +22,7 @@ def canonicalize(data: dict[str, Any]) -> bytes:
 
 def compute_event_hash(
     *,
+    tenant_id: str,
     event_type: str,
     actor_id: str,
     resource_type: str,
@@ -31,6 +32,7 @@ def compute_event_hash(
     previous_hash: str,
 ) -> str:
     content = {
+        "tenantId": tenant_id,
         "eventType": event_type,
         "actorId": actor_id,
         "resourceType": resource_type,

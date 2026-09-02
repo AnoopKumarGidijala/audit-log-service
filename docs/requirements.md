@@ -130,7 +130,7 @@ The open questions above are **not** all resolved — most remain genuinely open
 - **Actors** (Q3) are whatever `actorId` values already appear in the audit log — no distinction is drawn between human users, service accounts, or anything else, since the audit log doesn't currently distinguish them either.
 - **What regulators/compliance users need to see** (Q4, Q5) is a filterable raw event feed — who accessed which account and when — not a summarized or templated report. Filters supported: account/resource ID, actor ID, and a time range (`from`/`to`), matching the filter dimensions already established for `GET /audit/events`.
 - **Retention and redaction interact with this report exactly as they do with export** (not a new decision — reapplying the ones already made in Scenario B): archived records remain visible to compliance reporting (retention changes routine-query visibility, not historical availability for this purpose), and redacted fields stay redacted (the report reads the same stored rows every other read path reads, so a redacted value is simply not there to expose).
-- **Authorization** (Q6) is the existing JWT authentication only — no separate regulator role or permission tier. `docs/assumptions.md`'s "Authorization model beyond authentication" item remains open project-wide; this doesn't resolve it, just doesn't block on it.
+- **Authorization** (Q6) is now decided project-wide (see `docs/authorization-design.md`, added after this Scenario C increment): this endpoint requires the `auditor` or `admin` role. There is still no *regulator-specific* role separate from `auditor` - a regulator is modeled as an `auditor` user in the configured user store, not a distinct fifth role.
 - **Retention period for compliance data itself, and delivery/export format** (Q7, Q8) are not addressed by this increment — the report is a live query API, not a scheduled export or archive with its own retention policy. Scenario B's `GET /audit/export` remains the answer if a compliance user needs a portable, verifiable bundle instead of a live query.
 
 **What is implemented:** `GET /audit/compliance/account-access` — an authenticated endpoint returning matching `resourceType=ACCOUNT` audit events, optionally filtered by `resourceId`, `actorId`, and/or `from`/`to`, reusing the existing audit record store (no separate compliance database or schema).
@@ -139,7 +139,7 @@ The open questions above are **not** all resolved — most remain genuinely open
 
 - Regulator-specific report templates or a fixed regulatory output format.
 - PDF or other rendered/printable report generation.
-- Role-based regulator user management or any authorization tier beyond the existing single-credential JWT authentication.
+- A *regulator-specific* role distinct from `auditor` (see `docs/authorization-design.md` for the general role model now in place) - regulator access is modeled as an `auditor` user, not a fifth role.
 - Scheduled or recurring report generation/delivery.
 - External regulator system integrations (e.g. submitting reports to a regulator's own portal or API).
 - A separate reporting database, warehouse, or read replica — this endpoint queries the same `audit_events` table as everything else.

@@ -3,7 +3,9 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.core.security import get_current_subject
+from app.core.authorization import require_roles
+from app.core.roles import Role
+from app.core.security import CurrentUser
 from app.db.session import get_db
 from app.schemas.audit_event import AuditEventOut
 from app.schemas.export import ExportBundleOut, ExportFilterOut
@@ -17,7 +19,7 @@ def export_audit_events(
     actor_id: Annotated[str | None, Query(alias="actorId", min_length=1)] = None,
     resource_id: Annotated[str | None, Query(alias="resourceId", min_length=1)] = None,
     db: Session = Depends(get_db),
-    _subject: str = Depends(get_current_subject),
+    _current_user: CurrentUser = Depends(require_roles(Role.AUDITOR, Role.ADMIN)),
 ) -> ExportBundleOut:
     if not actor_id and not resource_id:
         raise HTTPException(

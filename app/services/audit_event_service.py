@@ -8,7 +8,14 @@ from app.schemas.audit_event import AuditEventCreate
 from app.services.hashing import GENESIS_HASH, compute_event_hash
 
 
-def create_audit_event(db: Session, event_in: AuditEventCreate) -> AuditEvent:
+def create_audit_event(db: Session, event_in: AuditEventCreate, *, tenant_id: str) -> AuditEvent:
+    """tenant_id is a required, explicit parameter rather than a field on
+    AuditEventCreate: it is never client-supplied (see
+    app/api/routes/audit_events.py, which derives it from the
+    authenticated user, and app/services/redaction_service.py, which
+    derives it from the record being redacted) - keeping it out of the
+    request schema makes it impossible to forge via the API.
+    """
     repo.lock_for_append(db)
 
     last_event = repo.get_last_event(db)
@@ -17,6 +24,7 @@ def create_audit_event(db: Session, event_in: AuditEventCreate) -> AuditEvent:
     timestamp = datetime.now(timezone.utc)
 
     event_hash = compute_event_hash(
+        tenant_id=tenant_id,
         event_type=event_in.event_type,
         actor_id=event_in.actor_id,
         resource_type=event_in.resource_type,
@@ -27,6 +35,7 @@ def create_audit_event(db: Session, event_in: AuditEventCreate) -> AuditEvent:
     )
 
     event = AuditEvent(
+        tenant_id=tenant_id,
         event_type=event_in.event_type,
         actor_id=event_in.actor_id,
         resource_type=event_in.resource_type,
@@ -42,6 +51,7 @@ def create_audit_event(db: Session, event_in: AuditEventCreate) -> AuditEvent:
 def list_audit_events(
     db: Session,
     *,
+    tenant_id: str | None = None,
     actor_id: str | None = None,
     event_type: str | None = None,
     resource_type: str | None = None,
@@ -53,6 +63,7 @@ def list_audit_events(
 ) -> list[AuditEvent]:
     return repo.list_events(
         db,
+        tenant_id=tenant_id,
         actor_id=actor_id,
         event_type=event_type,
         resource_type=resource_type,

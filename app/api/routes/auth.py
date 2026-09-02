@@ -9,11 +9,12 @@ router = APIRouter(tags=["auth"])
 
 @router.post("/auth/token", response_model=Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends()) -> Token:
-    if not authenticate_user(form_data.username, form_data.password):
+    user = authenticate_user(form_data.username, form_data.password)
+    if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    access_token = create_access_token(subject=form_data.username)
+    access_token = create_access_token(user)
     return Token(access_token=access_token)

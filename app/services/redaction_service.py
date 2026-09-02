@@ -92,6 +92,7 @@ def redact_event_fields(
     # current content is authorized to hash to, from now until it's
     # redacted again. See the docstring above and docs/redaction-design.md.
     redacted_content_hash = compute_event_hash(
+        tenant_id=event.tenant_id,
         event_type=event.event_type,
         actor_id=event.actor_id,
         resource_type=event.resource_type,
@@ -127,6 +128,11 @@ def redact_event_fields(
             resource_id=str(event_id),
             payload=redaction_payload,
         ),
+        # The companion event belongs to the same tenant as the record it
+        # documents - not the redacting admin's own tenant (admin may have
+        # none) - so that tenant's own readers/auditors see it alongside
+        # the record it describes.
+        tenant_id=event.tenant_id,
     )
 
     return RedactionResult(

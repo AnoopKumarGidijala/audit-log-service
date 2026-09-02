@@ -5,7 +5,9 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.api.time_range import require_utc, validate_range
-from app.core.security import get_current_subject
+from app.core.authorization import require_roles
+from app.core.roles import Role
+from app.core.security import CurrentUser
 from app.db.session import get_db
 from app.schemas.audit_event import AuditEventOut
 from app.schemas.compliance import ComplianceReportFilterOut, ComplianceReportOut
@@ -22,7 +24,7 @@ def get_account_access_report(
     start_time: Annotated[datetime | None, Query(alias="from")] = None,
     end_time: Annotated[datetime | None, Query(alias="to")] = None,
     db: Session = Depends(get_db),
-    _subject: str = Depends(get_current_subject),
+    _current_user: CurrentUser = Depends(require_roles(Role.AUDITOR, Role.ADMIN)),
 ) -> ComplianceReportOut:
     start_time = require_utc(start_time, field_name="from")
     end_time = require_utc(end_time, field_name="to")

@@ -62,12 +62,11 @@ Each layer only talks to the layer directly below it.
 +--------------------------+
 ```
 
-## Authentication
+## Authentication and Authorization
 
-- Authentication uses **JWT Bearer tokens**.
-- `POST /auth/token` issues a token; all other endpoints require a valid `Authorization: Bearer <token>` header.
-- Token verification happens in the API layer, before a request reaches the service layer.
-- Token issuance mechanics (e.g. credential store, token lifetime) are not finalized and will be defined during implementation.
+- Authentication uses **JWT Bearer tokens**. `POST /auth/token` issues a token; all other endpoints require a valid `Authorization: Bearer <token>` header. Token verification happens in the API layer, before a request reaches the service layer.
+- Credentials come from a small configured user store (`Settings.auth_users`), not an external identity provider.
+- Authorization is role-based (`writer`/`reader`/`auditor`/`admin`) and deliberately kept as a separate concern from authentication in code: `app/core/security.py` resolves *who* is calling, `app/core/authorization.py` decides *whether* their role may perform the operation the endpoint declares. `reader` queries are additionally scoped to the caller's own tenant; `auditor`/`admin` read across all tenants. Full design and the endpoint/role table: see `docs/authorization-design.md`.
 
 ## APIs (Scenario A)
 

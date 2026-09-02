@@ -10,6 +10,15 @@ class AuditEvent(Base):
     __tablename__ = "audit_events"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    # The tenant this record belongs to, always derived server-side from
+    # the authenticated writer's configured tenant (never client-supplied
+    # - see app/api/routes/audit_events.py) so it can't be forged. Part of
+    # the hashed content (see app/services/hashing.py), so tampering with
+    # it directly in the DB is caught like any other field. Used to scope
+    # a reader's queries to their own tenant (see
+    # docs/authorization-design.md) - auditor/admin reads are deliberately
+    # not filtered by it.
+    tenant_id = Column(String(100), nullable=False, index=True)
     # Indexed: all four are query filters on GET /audit/events, and this
     # log is expected to grow large, so filtering needs to use an index
     # rather than a full table scan.

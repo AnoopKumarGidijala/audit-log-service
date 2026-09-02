@@ -18,6 +18,7 @@ class AuditEventOut(BaseModel):
     model_config = ConfigDict(populate_by_name=True, from_attributes=True)
 
     id: int
+    tenant_id: str = Field(alias="tenantId")
     event_type: str = Field(alias="eventType")
     actor_id: str = Field(alias="actorId")
     resource_type: str = Field(alias="resourceType")

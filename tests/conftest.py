@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 
 from app.core.config import settings
+from app.core.roles import Role
 from app.db.base import Base
 from app.db.session import engine
 from app.main import app
@@ -26,11 +27,73 @@ def client():
     return TestClient(app)
 
 
-@pytest.fixture
-def auth_headers(client):
-    response = client.post(
-        "/auth/token",
-        data={"username": settings.auth_username, "password": settings.auth_password},
-    )
+def _headers_for_username(client, username: str) -> dict:
+    user = next(u for u in settings.auth_users if u.username == username)
+    response = client.post("/auth/token", data={"username": user.username, "password": user.password})
     token = response.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
+
+
+def _headers_for_role(client, role: Role) -> dict:
+    user = next(u for u in settings.auth_users if u.role == role)
+    return _headers_for_username(client, user.username)
+
+
+@pytest.fixture
+def auth_headers(client):
+    """Admin credentials. Admin can perform every operation (see
+    docs/authorization-design.md), so this fixture is kept as the default
+    for every pre-existing test that isn't specifically about
+    authorization - none of them need to change role just because roles
+    now exist.
+    """
+    return _headers_for_role(client, Role.ADMIN)
+
+
+@pytest.fixture
+def writer_headers(client):
+    """A writer in tenant-a."""
+    return _headers_for_username(client, "writer")
+
+
+@pytest.fixture
+def reader_headers(client):
+    """A reader in tenant-a."""
+    return _headers_for_username(client, "reader")
+
+
+@pytest.fixture
+def writer_headers_b(client):
+    """A writer in a second tenant, tenant-b - for cross-tenant tests."""
+    return _headers_for_username(client, "writer-b")
+
+
+@pytest.fixture
+def reader_headers_b(client):
+    """A reader in a second tenant, tenant-b - for cross-tenant tests."""
+    return _headers_for_username(client, "reader-b")
+
+
+@pytest.fixture
+def auditor_headers(client):
+    """An auditor - no tenant, reads span every tenant."""
+    return _headers_for_role(client, Role.AUDITOR)
+
+
+@pytest.fixture
+def admin_headers(client):
+    return _headers_for_role(client, Role.ADMIN)
+
+
+@pytest.fixture
+def writer_headers_no_tenant(client):
+    """A writer with no tenant configured - a misconfiguration case used to
+    test that writes are rejected rather than silently stamped with an
+    empty/blank tenant."""
+    return _headers_for_username(client, "writer-no-tenant")
+
+
+@pytest.fixture
+def reader_headers_no_tenant(client):
+    """A reader with no tenant configured - the mirror case for reads."""
+    return _headers_for_username(client, "reader-no-tenant")

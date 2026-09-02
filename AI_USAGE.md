@@ -305,3 +305,30 @@ Accepted.
 
 **Reason:**
 The implementation provides a practical prototype interpretation of the ambiguous compliance requirement while clearly separating assumptions from confirmed requirements and avoiding unsupported regulatory complexity.
+
+
+
+## Interaction 014
+
+**Tool:** Claude Code
+
+**Task:** Add role-based authorization and tenant-aware access control
+
+**Prompt Summary:**
+Asked Claude to separate authentication from authorization and introduce least-privilege roles for audit operations. The requested model included writer, reader, auditor and admin permissions, along with tenant/resource access restrictions and negative authorization tests.
+
+**Outcome:**
+Accepted after review and testing.
+
+**Engineer Review:**
+Reviewed the endpoint permission model and confirmed that sensitive operations no longer rely only on possession of a valid JWT. Verified that roles are enforced per endpoint, high-impact operations such as retention and redaction require elevated privileges, and cross-tenant access is denied where applicable.
+
+Reviewed negative tests for wrong-role access, unauthorized sensitive operations and tenant/resource isolation.
+
+**Decision:**
+Accepted.
+
+**Reason:**
+The change closes the gap between authentication and authorization by adding explicit least-privilege access controls without changing the existing audit hash-chain behavior.
+
+

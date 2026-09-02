@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.core.security import get_current_subject
+from app.core.authorization import require_roles
+from app.core.roles import Role
+from app.core.security import CurrentUser
 from app.db.session import get_db
 from app.schemas.redaction import RedactionRequest, RedactionResultOut
 from app.services import redaction_service
@@ -15,14 +17,14 @@ def redact_audit_event(
     event_id: int,
     request: RedactionRequest,
     db: Session = Depends(get_db),
-    subject: str = Depends(get_current_subject),
+    current_user: CurrentUser = Depends(require_roles(Role.ADMIN)),
 ) -> RedactionResultOut:
     try:
         result = redaction_service.redact_event_fields(
             db,
             event_id=event_id,
             fields=request.fields,
-            actor_id=subject,
+            actor_id=current_user.username,
             reason=request.reason,
         )
     except EventNotFoundError as exc:

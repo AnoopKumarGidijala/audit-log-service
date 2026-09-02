@@ -54,6 +54,7 @@ def _insert_events(timestamps, *, actor_prefix="user"):
         created = []
         for i, ts in enumerate(timestamps):
             fields = {
+                "tenant_id": "tenant-a",
                 "event_type": "USER_LOGIN",
                 "actor_id": f"{actor_prefix}-{i}",
                 "resource_type": "SESSION",

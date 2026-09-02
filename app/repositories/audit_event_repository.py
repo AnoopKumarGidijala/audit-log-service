@@ -48,6 +48,7 @@ def get_event(db: Session, event_id: int) -> AuditEvent | None:
 def list_events(
     db: Session,
     *,
+    tenant_id: str | None = None,
     actor_id: str | None = None,
     event_type: str | None = None,
     resource_type: str | None = None,
@@ -65,7 +66,14 @@ def list_events(
     # that's the point of retention, to reduce what's visible in everyday
     # queries. Full history (including archived records) is still available
     # via list_all_events(), which chain verification uses.
+    #
+    # tenant_id, when given, restricts results to that tenant - the caller
+    # (app/api/routes/audit_events.py) passes it for a reader (whose reads
+    # are always tenant-scoped) and omits it for auditor/admin (whose reads
+    # deliberately span every tenant - see docs/authorization-design.md).
     query = db.query(AuditEvent).filter(AuditEvent.archived_at.is_(None))
+    if tenant_id is not None:
+        query = query.filter(AuditEvent.tenant_id == tenant_id)
     if actor_id is not None:
         query = query.filter(AuditEvent.actor_id == actor_id)
     if event_type is not None:

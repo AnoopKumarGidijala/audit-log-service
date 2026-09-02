@@ -1,4 +1,5 @@
 from app.core.config import settings
+from app.core.roles import Role
 
 VALID_EVENT = {
     "eventType": "USER_LOGIN",
@@ -8,11 +9,13 @@ VALID_EVENT = {
     "payload": {},
 }
 
+_ADMIN = next(u for u in settings.auth_users if u.role == Role.ADMIN)
+
 
 def test_login_success(client):
     response = client.post(
         "/auth/token",
-        data={"username": settings.auth_username, "password": settings.auth_password},
+        data={"username": _ADMIN.username, "password": _ADMIN.password},
     )
 
     assert response.status_code == 200
@@ -24,7 +27,16 @@ def test_login_success(client):
 def test_login_wrong_password(client):
     response = client.post(
         "/auth/token",
-        data={"username": settings.auth_username, "password": "wrong-password"},
+        data={"username": _ADMIN.username, "password": "wrong-password"},
+    )
+
+    assert response.status_code == 401
+
+
+def test_login_unknown_username(client):
+    response = client.post(
+        "/auth/token",
+        data={"username": "no-such-user", "password": "whatever"},
     )
 
     assert response.status_code == 401

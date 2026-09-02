@@ -70,6 +70,7 @@ def test_hash_chain_stored_values(client, auth_headers):
     # exactly what the future verify endpoint will need to do.
     for event in (first, second):
         expected_hash = compute_event_hash(
+            tenant_id=event.tenant_id,
             event_type=event.event_type,
             actor_id=event.actor_id,
             resource_type=event.resource_type,

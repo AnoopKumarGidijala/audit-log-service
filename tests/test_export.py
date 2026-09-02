@@ -30,6 +30,7 @@ def _verify_bundle_self_consistency(bundle: dict) -> bool:
     functions - no DB access."""
     for record in bundle["records"]:
         recomputed = compute_event_hash(
+            tenant_id=record["tenantId"],
             event_type=record["eventType"],
             actor_id=record["actorId"],
             resource_type=record["resourceType"],

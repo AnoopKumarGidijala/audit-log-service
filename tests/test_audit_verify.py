@@ -96,6 +96,7 @@ def test_verify_detects_broken_link(client, auth_headers):
         # record 0.
         record.previous_hash = forged_previous_hash
         record.event_hash = compute_event_hash(
+            tenant_id=record.tenant_id,
             event_type=record.event_type,
             actor_id=record.actor_id,
             resource_type=record.resource_type,
