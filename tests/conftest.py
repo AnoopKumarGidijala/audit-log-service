@@ -27,9 +27,17 @@ def client():
     return TestClient(app)
 
 
+# AUTH_USERS in .env stores only Argon2 password hashes (see
+# app/core/passwords.py) - the plaintext is not recoverable from
+# settings.auth_users, so tests that need to log in as a seeded user have
+# to know the raw password out of band. Every seed user in .env shares this
+# one password; if .env changes, this must change with it.
+_SEED_PASSWORD = "local_dev_password"
+
+
 def _headers_for_username(client, username: str) -> dict:
     user = next(u for u in settings.auth_users if u.username == username)
-    response = client.post("/auth/token", data={"username": user.username, "password": user.password})
+    response = client.post("/auth/token", data={"username": user.username, "password": _SEED_PASSWORD})
     token = response.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
 

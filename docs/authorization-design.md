@@ -36,7 +36,7 @@ This split means a wrong-role request always fails in two visibly distinct steps
 
 ## 4. User store
 
-`Settings.auth_users` is a small, fixed list of `UserRecord(username, password, role, tenant_id)` entries, configured as one JSON array in a single `AUTH_USERS` environment variable (parsed by `pydantic-settings`, same env-file convention the rest of `Settings` already uses). This is the "small configured user store" called for - not an external IdP, not a database-backed user table with self-service signup/rotation. Passwords are plaintext in config, matching the precedent already set by the single-credential prototype auth this replaces - acceptable for a prototype, explicitly not production-grade (see Trade-offs).
+`Settings.auth_users` is a small, fixed list of `UserRecord(username, password_hash, role, tenant_id)` entries, configured as one JSON array in a single `AUTH_USERS` environment variable (parsed by `pydantic-settings`, same env-file convention the rest of `Settings` already uses). This is the "small configured user store" called for - not an external IdP, not a database-backed user table with self-service signup/rotation. Passwords are stored as Argon2 hashes, not plaintext - see `docs/auth-hardening-design.md` for the full hardening pass (password hashing, JWT issuer/audience/algorithm validation, weak-secret rejection) applied on top of this user store after it was first introduced.
 
 `POST /auth/token` is unchanged in shape (`OAuth2PasswordRequestForm` in, `Token` out) - it now looks the submitted username/password up in `auth_users` instead of comparing against one fixed pair, and the issued JWT carries `role` and `tenantId` claims alongside the existing `sub`.
 
@@ -66,7 +66,7 @@ The redaction service creates a companion `AUDIT_EVENT_REDACTED` audit event thr
 
 ## 6. Trade-offs and limitations
 
-- **Plaintext passwords in config.** Consistent with the single-credential prototype this replaces, not a new regression - still not production-grade. A real deployment would need hashed credentials at minimum, more realistically an external IdP.
+- **Credentials and tokens are still config-file/environment-based**, not backed by a real identity provider. Password storage itself was hardened (Argon2 hashes, not plaintext - see `docs/auth-hardening-design.md`), but there's still no self-service, no MFA, no credential rotation, and no revocation of an already-issued token before it expires. A real deployment would delegate this to an external IdP - see `docs/auth-hardening-design.md` §6 for specifics.
 - **No token revocation.** A JWT with a stale role/tenant claim remains valid until it expires (`access_token_expire_minutes`); there's no server-side session/blacklist. Changing a user's role or tenant in `AUTH_USERS` doesn't affect already-issued tokens.
 - **Tenant is the only ownership dimension.** There's no per-resource ACL below tenant (e.g. "this reader may only see `resourceType=SESSION` events"). If that's ever needed, it composes naturally with the existing filter pattern in `list_events()`, but wasn't asked for here.
 - **Auditor/admin cross-tenant access is unconditional, not audited-with-a-reason.** The prototype trusts the role itself as sufficient justification for cross-tenant visibility; it doesn't log *why* an auditor queried a given tenant's data (that would itself just be another audit event, but wasn't in scope here).

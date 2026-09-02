@@ -332,3 +332,22 @@ Accepted.
 The change closes the gap between authentication and authorization by adding explicit least-privilege access controls without changing the existing audit hash-chain behavior.
 
 
+## Interaction 015
+
+**Tool:** Claude Code
+
+**Task:** Harden authentication and JWT validation
+
+**Prompt Summary:** Asked Claude to improve the prototype authentication flow by replacing plaintext password comparison with secure password hashing and strengthening JWT validation. The requested changes included password-hash verification, fixed algorithm handling, issuer and audience checks, rejection of weak signing secrets, generic authentication failures and focused negative tests.
+
+**Outcome:** Accepted after review and testing.
+
+**Engineer Review:** Reviewed the password verification flow and confirmed configured credentials are represented as Argon2id hashes rather than plaintext passwords. Verified that unknown usernames use equivalent password-verification work to reduce timing-based username enumeration.
+
+Reviewed JWT validation and confirmed the accepted algorithm is fixed in code, issuer and audience are checked, expiry remains enforced and weak/default signing secrets are rejected during configuration startup. Authentication failures return a common response rather than exposing the specific validation failure.
+
+Reviewed negative tests for incorrect passwords, expired tokens, invalid signatures, malformed tokens, incorrect issuer or audience, unexpected algorithms and missing authentication.
+
+**Decision:** Accepted.
+
+**Reason:** The change strengthens identity verification and token validation while keeping the authentication model appropriately small for the prototype.

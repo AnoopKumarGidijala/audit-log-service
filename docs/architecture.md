@@ -65,7 +65,7 @@ Each layer only talks to the layer directly below it.
 ## Authentication and Authorization
 
 - Authentication uses **JWT Bearer tokens**. `POST /auth/token` issues a token; all other endpoints require a valid `Authorization: Bearer <token>` header. Token verification happens in the API layer, before a request reaches the service layer.
-- Credentials come from a small configured user store (`Settings.auth_users`), not an external identity provider.
+- Credentials come from a small configured user store (`Settings.auth_users`), not an external identity provider. Passwords are stored as Argon2 hashes, never plaintext; the JWT itself validates a fixed algorithm, issuer, audience, and expiry, and the app refuses to start with a weak/default signing secret. Full hardening design: see `docs/auth-hardening-design.md`.
 - Authorization is role-based (`writer`/`reader`/`auditor`/`admin`) and deliberately kept as a separate concern from authentication in code: `app/core/security.py` resolves *who* is calling, `app/core/authorization.py` decides *whether* their role may perform the operation the endpoint declares. `reader` queries are additionally scoped to the caller's own tenant; `auditor`/`admin` read across all tenants. Full design and the endpoint/role table: see `docs/authorization-design.md`.
 
 ## APIs (Scenario A)

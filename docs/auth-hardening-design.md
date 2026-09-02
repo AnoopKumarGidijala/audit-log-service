@@ -1,0 +1,47 @@
+# Authentication Hardening
+
+Builds on `docs/authorization-design.md` (roles, tenant scoping, the configured user store). That document covers *who is allowed to do what*; this one covers hardening *how identity itself is established* - password storage, and the JWT's own defenses - without changing the role/tenant model at all. `GET /audit/events`'s role gating, tenant scoping, etc. are untouched: everything here sits underneath `app.core.security.get_current_user()`, which is what the authorization layer already depends on.
+
+## 1. Password storage: Argon2, not plaintext
+
+`UserRecord.password_hash` (renamed from `password`) now stores an Argon2id hash, generated with `app/core/passwords.py:hash_password()` (a thin wrapper around `argon2-cffi`'s `PasswordHasher`, using its default cost parameters - deliberately not hand-tuned, since getting that right for this prototype's non-existent load profile isn't a meaningful exercise). `authenticate_user()` in `app/core/security.py` now calls `verify_password()` instead of comparing strings.
+
+Argon2id was chosen over bcrypt/PBKDF2/scrypt because it's OWASP's current top recommendation for password hashing (memory-hard, resists GPU/ASIC cracking better than the older alternatives) and `argon2-cffi` is an actively maintained, non-passlib-wrapped library - avoids depending on `passlib`, which has had bcrypt-backend compatibility issues with newer `bcrypt` releases.
+
+**Timing side-channel:** `authenticate_user()` calls `verify_password()` (a deliberately slow, constant-shape operation) against a dummy hash even when the submitted username doesn't exist in `auth_users`, via `verify_unknown_user_password()`. Without this, an unknown-username request would return almost instantly (no hash to check) while a known-username-wrong-password request would take the full Argon2 verify time - a measurable, exploitable difference that would let an attacker enumerate valid usernames purely from response latency, without ever guessing a password.
+
+## 2. JWT hardening
+
+All four of the following are enforced in `app/core/security.py`, at the single point every request already passes through (`get_current_user()`):
+
+- **Expiry.** Unchanged from before this pass, but explicit: `exp` is set at issuance (`create_access_token`) and PyJWT validates it on every `decode()` call - never disabled via `options={"verify_exp": False}` or similar. An `iat` (issued-at) claim was also added for observability, though nothing currently checks it.
+- **Issuer and audience.** `create_access_token()` now stamps `iss: settings.jwt_issuer` and `aud: settings.jwt_audience`; `get_current_user()` passes both to `jwt.decode(..., issuer=..., audience=...)`, which makes PyJWT reject a token minted for a different issuer or intended for a different audience - even one signed with the correct key. This matters most once a single signing key might ever be shared or reused across services: without it, a token legitimately issued for some other purpose, but signed with the same key, would otherwise be accepted here.
+- **Algorithm is fixed, not configurable.** `JWT_ALGORITHM = "HS256"` is a module-level constant in `app/core/security.py`, not a `Settings` field. The previous version had `algorithm: str = "HS256"` on `Settings`, which - while defaulting safely - meant a misconfigured or compromised deployment environment could in principle set `ALGORITHM=none` or something else PyJWT would honor. `jwt.decode(..., algorithms=[JWT_ALGORITHM])` passes a one-element allow-list, so PyJWT rejects a token whose header claims any other algorithm before even attempting signature verification - this is the standard defense against the classic "alg confusion" family of JWT attacks (an attacker crafting a token with `alg: none`, or re-signing with a different algorithm the server might still accept).
+- **Weak/default signing secrets rejected at startup**, not silently accepted. `Settings._reject_weak_secret_key` (a pydantic `field_validator` on `secret_key`) runs when `Settings()` is constructed - i.e. at process startup, before the app can serve a single request. It rejects: (a) a small set of known placeholder/default values (`change-me-to-a-random-secret` - deliberately the literal value shown in `.env.example`, so copying that file without editing it fails loudly instead of running insecurely - along with `secret`, `password`, `changeme`, and similar), and (b) anything shorter than 32 characters, a conservative floor for an HS256 key. Failure raises a `pydantic.ValidationError`, which propagates out of the `Settings()` call at import time and prevents the app from starting at all.
+
+## 3. Authentication failures reveal nothing
+
+Every authentication failure - missing token, malformed token, expired token, bad signature, wrong issuer, wrong audience, wrong algorithm, unknown username, wrong password - resolves to the exact same `401 {"detail": "Could not validate credentials"}` (`app.core.security._CREDENTIALS_ERROR`). PyJWT's various failure exceptions (`ExpiredSignatureError`, `InvalidSignatureError`, `InvalidIssuerError`, `InvalidAudienceError`, `InvalidAlgorithmError`, `DecodeError`, ...) all share a common base, `jwt.InvalidTokenError`, so one `except` clause catches all of them and none of their distinguishing detail (which check failed, what the token actually contained) reaches the response. `authenticate_user()` similarly returns `None` uniformly for "no such user" and "wrong password" - `POST /auth/token` can't tell the two apart from the response, which is exactly what closes the username-enumeration gap described in §1.
+
+## 4. What changed vs. what stayed the same
+
+Nothing about the *shape* of authentication changed: `POST /auth/token` still takes `OAuth2PasswordRequestForm` (username/password) and returns the same `Token` schema; the JWT still carries `sub`/`role`/`tenantId`, which `app.core.authorization.require_roles()` and the rest of the authorization layer consume completely unchanged. This was a hardening pass underneath an unchanged interface, not a redesign of the access-control model.
+
+## 5. Testing
+
+`tests/test_auth_security.py` is new, focused specifically on this hardening pass (`tests/test_auth.py` and `tests/test_authorization.py` continue to cover the pre-existing login/role/tenant behavior, now implicitly exercising the hashed-password path since that's what `authenticate_user()` calls). Covers: correct password, incorrect password, missing token, malformed token, expired token, invalid signature, wrong issuer, wrong audience, unexpected algorithm, and `Settings` startup rejection of several weak/default `SECRET_KEY` values (plus one accepted, sufficiently-long value, to confirm the validator isn't simply rejecting everything).
+
+## 6. What would move to an enterprise identity provider in production
+
+This remains prototype authentication by design - the request behind this change was explicit that registration, password reset, MFA, and a full identity platform are out of scope. In a real deployment, all of the following would move to an external IdP (e.g. an OIDC provider - Okta, Auth0, Azure AD/Entra ID, AWS Cognito, Keycloak):
+
+- **Credential storage and verification entirely.** No `AUTH_USERS` file, no `password_hash` column/config anywhere in this service - the IdP owns the credential store, this service would never see a raw password at all.
+- **Registration, self-service password reset, and account recovery.** None of this exists today; an IdP provides all of it out of the box, with its own abuse/rate-limiting protections.
+- **Multi-factor authentication.** Not attempted here; a standard IdP feature.
+- **Token issuance and signing.** This service would stop minting its own JWTs (`create_access_token` goes away) and instead verify tokens issued by the IdP - typically via the IdP's published JWKS endpoint (rotating asymmetric keys, so this service would validate with the IdP's public key rather than share a single symmetric `SECRET_KEY`), still checking issuer/audience/algorithm/expiry exactly as now, but against IdP-controlled values.
+- **Key rotation.** A single long-lived symmetric `SECRET_KEY` (this prototype) has no rotation story; an IdP's JWKS-based asymmetric keys are rotated routinely and transparently to relying services like this one.
+- **Token revocation / session management.** This prototype has none - a token is valid until it expires, full stop. An IdP can revoke a session or token before natural expiry (e.g. on logout, or a detected compromise); adding that here would mean a token-blacklist or introspection call on every request, which wasn't built.
+- **User/role/tenant provisioning and lifecycle.** `AUTH_USERS` is hand-edited config; an IdP would own onboarding/offboarding, and role/tenant claims would typically come from the IdP's own group/claim-mapping configuration rather than a JSON blob in an env var.
+- **Audit of authentication events themselves** (login success/failure, password changes, MFA challenges) - out of scope here entirely; an IdP provides this natively, separate from (and prior to) this service's own audit-of-application-events (the actual subject of this project).
+
+What stays the same even after that migration: the role model (`writer`/`reader`/`auditor`/`admin`), tenant scoping, and `app.core.authorization.require_roles()` - those consume `role`/`tenantId` claims regardless of who issued the token, so swapping the issuer is a change confined to `app/core/security.py`, not a redesign of authorization.

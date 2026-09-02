@@ -13,6 +13,7 @@ These are our **own initial technical decisions for this implementation** — th
 | **PostgreSQL** | Mature relational database with strong support for ordering, transactions, and indexing needed for an append-only, queryable log. |
 | **JWT Bearer authentication** | Simple, standard, stateless way to authenticate API requests without the service needing to manage sessions. |
 | **SHA-256 for hashing** | Widely used, well-vetted cryptographic hash function, adequate collision resistance for tamper-evidence purposes. |
+| **Argon2id for password hashing** | OWASP's current top recommendation for password storage (memory-hard, resists GPU/ASIC cracking); `argon2-cffi` is actively maintained and avoids `passlib`'s bcrypt-backend compatibility issues. Not the same use case as SHA-256 above - event hashing needs fast, reproducible, verifiable hashes; password hashing needs the opposite, deliberately slow ones. See `docs/auth-hardening-design.md`. |
 | **Server-generated timestamps stored in UTC** | Avoids trusting client-supplied timestamps for ordering/integrity, and avoids timezone ambiguity in stored records and comparisons. |
 
 ## Open / Not Finalized
