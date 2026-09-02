@@ -373,3 +373,27 @@ Reviewed tests for normal creation, identical retries, conflicting key reuse, ca
 **Decision:** Accepted.
 
 **Reason:** The change prevents duplicate audit events caused by client retries while preserving the existing append-only hash-chain semantics and transaction safety.
+
+
+
+
+
+## Interaction 017
+
+**Tool:** Claude Code
+
+**Task:** Add concurrency and transaction rollback tests
+
+**Prompt Summary:** Asked Claude to prove the existing PostgreSQL advisory-lock append design using integration tests against a real PostgreSQL database. The requested tests covered concurrent event creation, prevention of hash-chain forks, transaction rollback after an append failure, correct recovery on the next append, and concurrent requests using the same idempotency key.
+
+**Outcome:** Accepted after review and testing.
+
+**Engineer Review:** Reviewed the new integration tests and confirmed they exercise real PostgreSQL concurrency rather than mocking database locking. Concurrent event creation is validated through both the audit verification endpoint and a direct database query checking for multiple records sharing the same previous hash.
+
+Reviewed the forced transaction-failure test and confirmed that a failed append leaves no partial audit record and that the next successful append continues from the correct chain tail. Also reviewed concurrent idempotency testing to confirm duplicate retries produce only one audit event.
+
+The concurrency tests were executed repeatedly to check for timing-related flakiness, and the full test suite remained successful without requiring production-code changes.
+
+**Decision:** Accepted.
+
+**Reason:** The tests provide direct evidence that the existing transaction and advisory-lock design prevents chain forks, rolls back failed writes cleanly and remains safe under concurrent retries.
