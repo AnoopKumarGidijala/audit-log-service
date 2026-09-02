@@ -9,6 +9,7 @@ from app.core.authorization import require_roles
 from app.core.rate_limit import enforce_sensitive_endpoint_rate_limit
 from app.core.roles import Role
 from app.core.security import CurrentUser
+from app.core.security_logging import log_security_event
 from app.db.session import get_db
 from app.schemas.audit_event import AuditEventOut
 from app.schemas.compliance import ComplianceReportFilterOut, ComplianceReportOut
@@ -25,7 +26,7 @@ def get_account_access_report(
     start_time: Annotated[datetime | None, Query(alias="from")] = None,
     end_time: Annotated[datetime | None, Query(alias="to")] = None,
     db: Session = Depends(get_db),
-    _current_user: CurrentUser = Depends(require_roles(Role.AUDITOR, Role.ADMIN)),
+    current_user: CurrentUser = Depends(require_roles(Role.AUDITOR, Role.ADMIN)),
     _rate_limit: None = Depends(enforce_sensitive_endpoint_rate_limit),
 ) -> ComplianceReportOut:
     start_time = require_utc(start_time, field_name="from")
@@ -38,6 +39,14 @@ def get_account_access_report(
         resource_id=resource_id,
         start_time=start_time,
         end_time=end_time,
+    )
+
+    log_security_event(
+        "compliance.report_accessed",
+        requested_by=current_user.username,
+        actor_id=actor_id,
+        resource_id=resource_id,
+        record_count=len(records),
     )
 
     return ComplianceReportOut(

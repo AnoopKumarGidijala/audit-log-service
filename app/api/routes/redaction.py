@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.core.authorization import require_roles
 from app.core.roles import Role
 from app.core.security import CurrentUser
+from app.core.security_logging import log_security_event
 from app.db.session import get_db
 from app.schemas.redaction import RedactionRequest, RedactionResultOut
 from app.services import redaction_service
@@ -31,6 +32,17 @@ def redact_audit_event(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except NoRedactableFieldsError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)) from exc
+
+    # Field *names* only - the whole point of redaction is that the
+    # original values never need to be retained anywhere, logs included
+    # (see docs/security-logging-design.md and docs/redaction-design.md).
+    log_security_event(
+        "redaction.applied",
+        redacted_by=current_user.username,
+        event_id=event_id,
+        newly_redacted_fields=result.newly_redacted_fields,
+        redaction_event_id=result.redaction_event.id,
+    )
 
     return RedactionResultOut(
         event_id=result.event.id,

@@ -12,8 +12,13 @@ from app.api.routes.redaction import router as redaction_router
 from app.api.routes.retention import router as retention_router
 from app.core.body_size_limit import MaxBodySizeMiddleware
 from app.core.config import settings
+from app.core.correlation import CorrelationIdMiddleware
+from app.core.error_handling import handle_unexpected_exception
+from app.core.logging_config import configure_logging
 from app.db.base import Base
 from app.db.session import engine
+
+configure_logging()
 
 
 @asynccontextmanager
@@ -51,6 +56,19 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["Authorization", "Content-Type", "Idempotency-Key"],
 )
+
+# Added last, so it's the outermost middleware (see the module-order
+# comment above) - the request/correlation id must be established before
+# anything else runs, so it's available to every log line for the
+# request's entire lifetime, including ones emitted by the other
+# middleware above (neither currently logs, but this ordering is what
+# would make that correct if either ever did).
+app.add_middleware(CorrelationIdMiddleware)
+
+# Catches only exceptions nothing more specific already handled - see
+# app/core/error_handling.py's own docstring for the full explanation of
+# why this exists and how it interacts with the middleware above.
+app.add_exception_handler(Exception, handle_unexpected_exception)
 
 app.include_router(auth_router)
 app.include_router(audit_events_router)

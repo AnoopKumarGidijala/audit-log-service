@@ -1,7 +1,10 @@
-from fastapi import Depends, HTTPException, status
+import logging
+
+from fastapi import Depends, HTTPException, Request, status
 
 from app.core.roles import Role
 from app.core.security import CurrentUser, get_current_user
+from app.core.security_logging import log_security_event
 
 
 def require_roles(*allowed_roles: Role):
@@ -17,8 +20,19 @@ def require_roles(*allowed_roles: Role):
     inferred from shared, generic auth wiring.
     """
 
-    def _require_roles(user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
+    def _require_roles(
+        request: Request, user: CurrentUser = Depends(get_current_user)
+    ) -> CurrentUser:
         if user.role not in allowed_roles:
+            log_security_event(
+                "authz.denied",
+                level=logging.WARNING,
+                username=user.username,
+                role=user.role.value,
+                required_roles=[role.value for role in allowed_roles],
+                path=request.url.path,
+                method=request.method,
+            )
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Role '{user.role.value}' is not permitted to perform this operation.",
