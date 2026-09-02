@@ -441,3 +441,53 @@ Reviewed the explicit deny-by-default CORS configuration and the test isolation 
 **Decision:** Accepted.
 
 **Reason:** The change adds practical protection against oversized, deeply nested and high-frequency requests while keeping the implementation appropriate for the prototype.
+
+
+
+## Interaction 020
+
+**Tool:** Claude Code
+
+**Task:** Add security logging and safe error handling
+
+**Prompt Summary:** Asked Claude to add structured logging for security-sensitive operations, correlation IDs for request tracing, automatic protection against sensitive values appearing in logs, and safe handling of unexpected application errors.
+
+**Outcome:** Accepted after review and testing.
+
+**Engineer Review:** Reviewed the structured JSON logging and confirmed security-relevant events are recorded for authentication, authorization denial, retention, redaction, export, compliance access and chain-verification failures.
+
+Verified that request correlation IDs are propagated through logs and returned with responses. Reviewed the sanitization layer and confirmed sensitive keys, JWT-shaped values and configured secret values are automatically removed from log output. Redaction logging records field names only and does not expose original sensitive values.
+
+Reviewed unexpected-error handling and confirmed clients receive a generic server error while detailed diagnostics remain available server-side. Existing expected HTTP error responses remain unchanged. Tests and live validation confirmed sensitive values do not leak through structured logs.
+
+**Decision:** Accepted.
+
+**Reason:** The change improves security visibility and troubleshooting while preventing credentials, tokens, redacted values and internal exception details from being exposed.
+
+
+
+
+
+
+
+## Interaction 021
+
+**Tool:** Claude Code
+
+**Task:** Add database migrations and deployment readiness checks
+
+**Prompt Summary:** Asked Claude to replace automatic table creation, pin direct dependencies to tested versions, add application health and database readiness endpoints, and document the setup and schema-change workflow.
+
+**Outcome:** Accepted after review and testing.
+
+**Engineer Review:** Reviewed the setup and confirmed application startup no longer creates tables automatically. The initial migration was generated and validated against an empty PostgreSQL database, and schema comparison confirmed that the migration matches the current SQLAlchemy models.
+
+Reviewed the migration drift test and confirmed future model changes without corresponding migrations will fail the test suite. Also reviewed the dependency pinning and confirmed direct dependencies use tested versions.
+
+Reviewed the separate liveness and readiness endpoints. Liveness does not depend on the database, while readiness performs a database check and returns a safe failure response without exposing database or driver details.
+
+The complete migration lifecycle was exercised against PostgreSQL and the full test suite passed.
+
+**Decision:** Accepted.
+
+**Reason:** The change replaces prototype-only schema creation with a repeatable migration process and adds basic deployment-readiness checks while improving dependency reproducibility.

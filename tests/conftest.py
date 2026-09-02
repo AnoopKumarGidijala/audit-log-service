@@ -9,7 +9,11 @@ import os
 # See the "Testing" section of README.md.
 os.environ["ENV_FILE"] = ".env.test"
 
+from pathlib import Path
+
 import pytest
+from alembic import command
+from alembic.config import Config
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 from sqlalchemy.engine import make_url
@@ -17,9 +21,10 @@ from sqlalchemy.engine import make_url
 from app.core.config import settings
 from app.core.rate_limit import enforce_login_rate_limit, enforce_sensitive_endpoint_rate_limit
 from app.core.roles import Role
-from app.db.base import Base
 from app.db.session import engine
 from app.main import app
+
+_ALEMBIC_INI_PATH = Path(__file__).resolve().parent.parent / "alembic.ini"
 
 
 def _assert_using_a_test_database() -> None:
@@ -47,7 +52,23 @@ _assert_using_a_test_database()
 
 @pytest.fixture(scope="session", autouse=True)
 def _create_tables():
-    Base.metadata.create_all(bind=engine)
+    """Applies real Alembic migrations against the test database, the
+    same mechanism (and the same migrations/versions/ files) used against
+    a real deployment - not a shortcut like Base.metadata.create_all()
+    (removed - see app/main.py). This means the test suite also serves as
+    an ongoing check that the migrations actually apply cleanly and stay
+    in sync with app/db/models.py; a genuine drift between them (someone
+    changing a model without adding a migration) would surface here as a
+    failure before any test even runs, not silently.
+
+    Idempotent: alembic tracks applied revisions in its own
+    alembic_version table, so re-running this against an already-migrated
+    database (e.g. a test DB container reused across multiple local
+    `pytest` invocations without a `docker compose down -v` in between) is
+    a no-op, not an error.
+    """
+    alembic_cfg = Config(str(_ALEMBIC_INI_PATH))
+    command.upgrade(alembic_cfg, "head")
     yield
 
 

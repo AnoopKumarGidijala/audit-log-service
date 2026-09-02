@@ -1,5 +1,3 @@
-from contextlib import asynccontextmanager
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -8,6 +6,7 @@ from app.api.routes.audit_verify import router as audit_verify_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.compliance import router as compliance_router
 from app.api.routes.export import router as export_router
+from app.api.routes.health import router as health_router
 from app.api.routes.redaction import router as redaction_router
 from app.api.routes.retention import router as retention_router
 from app.core.body_size_limit import MaxBodySizeMiddleware
@@ -15,21 +14,17 @@ from app.core.config import settings
 from app.core.correlation import CorrelationIdMiddleware
 from app.core.error_handling import handle_unexpected_exception
 from app.core.logging_config import configure_logging
-from app.db.base import Base
-from app.db.session import engine
 
 configure_logging()
 
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # No migration tool is set up yet (see session notes); creating tables
-    # on startup if they don't already exist is a prototype-scoped stand-in.
-    Base.metadata.create_all(bind=engine)
-    yield
-
-
-app = FastAPI(title="Tamper-Evident Audit Log Service", lifespan=lifespan)
+# No startup lifespan hook creating tables: schema changes are applied
+# explicitly via Alembic (`alembic upgrade head`), not implicitly by the
+# application on every boot - see README.md's "Setup" section and
+# migrations/versions/. A prototype-only assumption this project
+# deliberately no longer makes: an application process should be able to
+# start (and, via /health/live, report itself live) without silently
+# mutating schema as a side effect of starting.
+app = FastAPI(title="Tamper-Evident Audit Log Service")
 
 # Runs before request parsing (see app/core/body_size_limit.py). Added
 # first deliberately: Starlette's add_middleware() makes the *last*-added
@@ -70,6 +65,7 @@ app.add_middleware(CorrelationIdMiddleware)
 # why this exists and how it interacts with the middleware above.
 app.add_exception_handler(Exception, handle_unexpected_exception)
 
+app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(audit_events_router)
 app.include_router(audit_verify_router)

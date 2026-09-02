@@ -1,11 +1,17 @@
-fastapi
-uvicorn[standard]
-httpx
-pytest
-pytest-cov
-sqlalchemy
-psycopg2-binary
-pydantic-settings
-pyjwt
-python-multipart
-argon2-cffi
+# Pinned to exact versions this project is tested against, so
+# `pip install -r requirements.txt` is reproducible rather than picking up
+# whatever the latest compatible release happens to be on a given day.
+# Only direct dependencies are pinned here (not their own transitive
+# dependencies) - see README.md's "Setup" section.
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+httpx==0.28.1
+pytest==9.1.1
+pytest-cov==7.1.0
+sqlalchemy==2.0.52
+psycopg2-binary==2.9.12
+pydantic-settings==2.15.0
+pyjwt==2.13.0
+python-multipart==0.0.32
+argon2-cffi==25.1.0
+alembic==1.19.1
