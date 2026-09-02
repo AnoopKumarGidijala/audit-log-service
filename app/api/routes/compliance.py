@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.api.time_range import require_utc, validate_range
 from app.core.authorization import require_roles
+from app.core.rate_limit import enforce_sensitive_endpoint_rate_limit
 from app.core.roles import Role
 from app.core.security import CurrentUser
 from app.db.session import get_db
@@ -25,6 +26,7 @@ def get_account_access_report(
     end_time: Annotated[datetime | None, Query(alias="to")] = None,
     db: Session = Depends(get_db),
     _current_user: CurrentUser = Depends(require_roles(Role.AUDITOR, Role.ADMIN)),
+    _rate_limit: None = Depends(enforce_sensitive_endpoint_rate_limit),
 ) -> ComplianceReportOut:
     start_time = require_utc(start_time, field_name="from")
     end_time = require_utc(end_time, field_name="to")

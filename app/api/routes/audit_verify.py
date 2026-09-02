@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.authorization import require_roles
+from app.core.rate_limit import enforce_sensitive_endpoint_rate_limit
 from app.core.roles import Role
 from app.core.security import CurrentUser
 from app.db.session import get_db
@@ -15,5 +16,6 @@ router = APIRouter(tags=["audit"])
 def verify_audit_chain(
     db: Session = Depends(get_db),
     _current_user: CurrentUser = Depends(require_roles(Role.AUDITOR, Role.ADMIN)),
+    _rate_limit: None = Depends(enforce_sensitive_endpoint_rate_limit),
 ) -> ChainVerificationResultOut:
     return chain_verification_service.verify_chain(db)

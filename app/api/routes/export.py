@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.authorization import require_roles
+from app.core.rate_limit import enforce_sensitive_endpoint_rate_limit
 from app.core.roles import Role
 from app.core.security import CurrentUser
 from app.db.session import get_db
@@ -20,6 +21,7 @@ def export_audit_events(
     resource_id: Annotated[str | None, Query(alias="resourceId", min_length=1)] = None,
     db: Session = Depends(get_db),
     _current_user: CurrentUser = Depends(require_roles(Role.AUDITOR, Role.ADMIN)),
+    _rate_limit: None = Depends(enforce_sensitive_endpoint_rate_limit),
 ) -> ExportBundleOut:
     if not actor_id and not resource_id:
         raise HTTPException(

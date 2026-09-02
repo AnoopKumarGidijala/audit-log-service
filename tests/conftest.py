@@ -15,6 +15,7 @@ from sqlalchemy import text
 from sqlalchemy.engine import make_url
 
 from app.core.config import settings
+from app.core.rate_limit import enforce_login_rate_limit, enforce_sensitive_endpoint_rate_limit
 from app.core.roles import Role
 from app.db.base import Base
 from app.db.session import engine
@@ -62,7 +63,24 @@ def _clean_audit_events():
 
 @pytest.fixture
 def client():
-    return TestClient(app)
+    """A TestClient with the rate-limit dependencies overridden to no-ops.
+
+    The rate limiters (app/core/rate_limit.py) are process-wide singletons
+    that persist for the whole pytest session, not reset between tests -
+    and Starlette's TestClient sends every request from the same fake
+    client host, and most of this suite logs in and calls the
+    sensitive-endpoint routes as the same handful of usernames (e.g.
+    "admin") across dozens of tests. Without this override, unrelated
+    tests would start failing with 429s once the real limits were
+    exhausted, well before any test actually about rate limiting ran.
+    tests/test_rate_limiting.py is the one place that needs (and uses) the
+    real, non-overridden behavior - see its own `real_client` fixture.
+    """
+    app.dependency_overrides[enforce_login_rate_limit] = lambda: None
+    app.dependency_overrides[enforce_sensitive_endpoint_rate_limit] = lambda: None
+    yield TestClient(app)
+    app.dependency_overrides.pop(enforce_login_rate_limit, None)
+    app.dependency_overrides.pop(enforce_sensitive_endpoint_rate_limit, None)
 
 
 # AUTH_USERS in .env.test stores only Argon2 password hashes (see

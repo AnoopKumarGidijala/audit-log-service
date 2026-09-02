@@ -422,3 +422,22 @@ Reviewed the documented setup from a fresh environment. The complete suite passe
 
 
 
+## Interaction 019
+
+**Tool:** Claude Code
+
+**Task:** Add API request limits and abuse protection
+
+**Prompt Summary:** Asked Claude to add configurable defensive limits for audit requests, including payload size and nesting restrictions, whole-request size limits, rate limiting for authentication and expensive audit operations, and an explicit CORS policy.
+
+**Outcome:** Accepted after review and testing.
+
+**Engineer Review:** Reviewed the payload validation and confirmed limits are applied to identity fields as well as payload size, nesting depth and string length. Verified oversized request bodies are rejected before normal request processing.
+
+Reviewed the rate-limiting design and confirmed login attempts are limited by client IP while expensive authenticated operations such as verification, export and compliance reporting are limited by authenticated user. The in-memory implementation is intentionally scoped to a single-instance prototype, with distributed enforcement documented as a production improvement.
+
+Reviewed the explicit deny-by-default CORS configuration and the test isolation used for process-wide rate limiters. Tests cover allowed and rejected payloads, request-size limits, rate-limit behavior and CORS handling. Live HTTP validation confirmed the expected 422, 413 and 429 responses.
+
+**Decision:** Accepted.
+
+**Reason:** The change adds practical protection against oversized, deeply nested and high-frequency requests while keeping the implementation appropriate for the prototype.

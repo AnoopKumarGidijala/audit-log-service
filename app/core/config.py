@@ -92,6 +92,45 @@ class Settings(BaseSettings):
     # made-up default.
     retention_window_days: int = Field(gt=0)
 
+    # --- Defensive limits (see docs/defensive-limits-design.md) ----------
+    # Centralized here, not scattered as constants across route handlers,
+    # so every limit this service enforces is visible and adjustable in
+    # one place.
+
+    # Checked against the Content-Length header before the request body is
+    # parsed at all (see app/core/body_size_limit.py) - a coarse, whole-
+    # request cap, distinct from max_payload_bytes below (which measures
+    # just the parsed `payload` field specifically, after parsing).
+    max_request_body_bytes: int = Field(default=32_768, gt=0)
+    # The audit event `payload` field's own serialized size.
+    max_payload_bytes: int = Field(default=16_384, gt=0)
+    # How many levels of nested dict/list a `payload` may contain.
+    max_payload_depth: int = Field(default=10, gt=0)
+    # The longest a single string value (anywhere in `payload`, at any
+    # nesting level, including dict keys) may be.
+    max_payload_string_length: int = Field(default=2_000, gt=0)
+
+    # Repeated-authentication-attempt limiting (see app/core/rate_limit.py)
+    # - in-memory, single-process only; see that module's docstring and
+    # docs/defensive-limits-design.md for why, and what a distributed
+    # deployment would need instead.
+    login_rate_limit_max_attempts: int = Field(default=5, gt=0)
+    login_rate_limit_window_seconds: int = Field(default=60, gt=0)
+
+    # High-frequency-request limiting for computationally expensive,
+    # unpaginated endpoints (chain verification, export, compliance
+    # reporting - see app/core/rate_limit.py's use in their routes).
+    sensitive_rate_limit_max_requests: int = Field(default=10, gt=0)
+    sensitive_rate_limit_window_seconds: int = Field(default=60, gt=0)
+
+    # CORS: explicit and deny-by-default. An empty list (the default)
+    # means no browser-based cross-origin caller is allowed - not "CORS
+    # wasn't configured, so behavior is whatever FastAPI/Starlette happens
+    # to do by default," but a deliberate, visible policy (see
+    # docs/defensive-limits-design.md and app/main.py). Set explicitly per
+    # deployment if a browser-based frontend needs cross-origin access.
+    cors_allowed_origins: list[str] = []
+
     # Which dotenv file to load - always ".env" for the real application
     # (a normal `uvicorn` run never sets ENV_FILE). tests/conftest.py sets
     # ENV_FILE=.env.test unconditionally, before this module is first
